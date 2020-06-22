@@ -127,3 +127,28 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Pycharm
+.idea/
+
+# individual development config settings
+/local/dev_config.py
+
+# local secrets file
+/local/secrets.py
+
+# sandbox
+/sandbox/
+
+# symbolic-link shortcuts
+/setup-sample-data.py
+/credentials
+/api/local/scratchpad.py
+
+/tests/unit_tests/test_message.mime
+
+# latex/tex files
+*.aux
+*.out
+*.synctex.gz
+
