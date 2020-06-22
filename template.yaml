@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: 2010-09-09
 Transform: AWS::Serverless-2016-10-31
 Resources:
-  Table:
+  Calendars:
     Type: AWS::DynamoDB::Table
     Properties:
       AttributeDefinitions:
@@ -13,54 +13,53 @@ Resources:
           KeyType: HASH
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
-  InterviewsApi:
-    Type: AWS::Serverless::Api
+  CalendarBlocks:
+    Type: AWS::DynamoDB::Table
     Properties:
-      Name: !Sub
-        - ${ResourceName} From Stack ${StackTagName} Environment ${EnvironmentTagName}
-        - ResourceName: InterviewsApi
-      StageName: !Ref EnvironmentAPIGatewayStageName
-      DefinitionBody:
-        swagger: '2.0'
-        info: {}
-        paths:
-          /v1/acuity-event:
-            post:
-              x-amazon-apigateway-integration:
-                httpMethod: POST
-                type: aws_proxy
-                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ProcessAcuityEvent.Arn}/invocations
-              responses: {}
-      EndpointConfiguration: REGIONAL
-      TracingEnabled: true
-  ProcessAcuityEvent:
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+  BlockCalendars:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub ${AWS::StackName}-ProcessAcuityEvent
+      FunctionName: !Sub ${AWS::StackName}-BlockCalendars
       Description: !Sub
         - Stack ${StackTagName} Environment ${EnvironmentTagName} Function ${ResourceName}
-        - ResourceName: ProcessAcuityEvent
+        - ResourceName: BlockCalendars
       CodeUri: src
-      Handler: handler.handler
+      Handler: main.block_calendars
       Runtime: python3.7
-      MemorySize: 3008
-      Timeout: 30
+      MemorySize: !Ref EnvConfiglambdamemorysizeAsString
+      Timeout: !Ref EnvConfiglambdatimeoutAsString
       Tracing: Active
       Policies:
         - AWSXrayWriteOnlyAccess
         - DynamoDBCrudPolicy:
-            TableName: !Ref Table
-      Events:
-        InterviewsApiPOSTv1acuityevent:
-          Type: Api
-          Properties:
-            Path: /v1/acuity-event
-            Method: POST
-            RestApiId: !Ref InterviewsApi
+            TableName: !Ref CalendarBlocks
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Calendars
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/${EnvironmentTagName}/*
       Environment:
         Variables:
-          TABLE_NAME: !Ref Table
-          TABLE_ARN: !GetAtt Table.Arn
+          TABLE_NAME: !Ref CalendarBlocks
+          TABLE_ARN: !GetAtt CalendarBlocks.Arn
+          TABLE_NAME_2: !Ref Calendars
+          TABLE_ARN_2: !GetAtt Calendars.Arn
+          SECRETS_NAMESPACE: !Sub /${EnvironmentTagName}/
+      Events:
+        Timer:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 15 ? * 6 *)
+          Metadata:
+            StackeryName: BlockCalendarsTimer
 Parameters:
   StackTagName:
     Type: String
@@ -68,6 +67,13 @@ Parameters:
   EnvironmentTagName:
     Type: String
     Description: Environment Name (injected by Stackery at deployment time)
-  EnvironmentAPIGatewayStageName:
-    Type: String
-    Description: Environment name used for API Gateway Stage names (injected by Stackery at deployment time)
+  EnvConfiglambdamemorysizeAsString:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /<EnvironmentName>/lambda/memory-size
+  EnvConfiglambdatimeoutAsString:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /<EnvironmentName>/lambda/timeout
+Metadata:
+  EnvConfigParameters:
+    EnvConfiglambdamemorysizeAsString: lambda.memory-size
+    EnvConfiglambdatimeoutAsString: lambda.timeout
