@@ -95,13 +95,3 @@ class AcuityClient:
             error_dict = {'block_id': block_id}
             self.logger.error(error_message, extra=error_dict)
             raise utils.DetailedValueError(error_message, details=error_dict)
-
-
-if __name__ == '__main__':
-    acuity_client = AcuityClient()
-    # start = datetime.datetime.now() + datetime.timedelta(days=2)
-    # end = start + datetime.timedelta(hours=1)
-    # response = acuity_client.post_block(4038206, start, end)
-    response = acuity_client.get_blocks(calendar_id=4038206)
-    for b in response:
-        pprint(b)

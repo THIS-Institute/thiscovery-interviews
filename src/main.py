@@ -121,9 +121,3 @@ def clear_blocks(event, context):
     calendar_blocker = CalendarBlocker(logger, correlation_id)
     blocks_deleted = calendar_blocker.delete_blocks()
     logger.info(f'Deleted {blocks_deleted} calendar blocks from Acuity and Dynamodb')
-
-
-if __name__ == '__main__':
-    calendar_blocker = CalendarBlocker(utils.get_logger(), None)
-    calendar_blocker.create_blocks()
-    calendar_blocker.delete_blocks()
