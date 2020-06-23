@@ -62,6 +62,37 @@ Resources:
             Schedule: cron(0 15 ? * 6 *)
           Metadata:
             StackeryName: BlockCalendarsTimer
+  ClearBlocks:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-ClearBlocks
+      Description: !Sub
+        - Stack ${StackTagName} Environment ${EnvironmentTagName} Function ${ResourceName}
+        - ResourceName: ClearBlocks
+      CodeUri: src
+      Handler: main.clear_blocks
+      Runtime: python3.7
+      MemorySize: !Ref EnvConfiglambdamemorysizeAsString
+      Timeout: !Ref EnvConfiglambdatimeoutAsString
+      Tracing: Active
+      Policies:
+        - AWSXrayWriteOnlyAccess
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CalendarBlocks
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/${EnvironmentTagName}/*
+      Events:
+        Timer2:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 8 ? * 2 *)
+          Metadata:
+            StackeryName: ClearBlocksTimer
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref CalendarBlocks
+          TABLE_ARN: !GetAtt CalendarBlocks.Arn
+          SECRETS_NAMESPACE: !Sub /${EnvironmentTagName}/
 Parameters:
   StackTagName:
     Type: String
