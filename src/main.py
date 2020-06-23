@@ -29,8 +29,8 @@ class CalendarBlocker:
         env_name = utils.get_environment_name()
         self.logger = logger
         self.correlation_id = correlation_id
-        self.calendars_table = f'{STACK_NAME}-{env_name}-Calendars'
-        self.blocks_table = f'{STACK_NAME}-{env_name}-CalendarBlocks'
+        self.calendars_table = 'Calendars'  # f'{STACK_NAME}-{env_name}-Calendars'
+        self.blocks_table = 'CalendarBlocks'  # f'{STACK_NAME}-{env_name}-CalendarBlocks'
         self.ddb_client = Dynamodb()
         self.acuity_client = AcuityClient()
 

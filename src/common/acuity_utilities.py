@@ -38,8 +38,9 @@ class AcuityClient:
     def get_calendars(self):
         response = self.session.get(f"{self.base_url}calendars")
         if response.ok:
-            pprint(response.json())
-        return response
+            return response.json()
+        else:
+            raise utils.DetailedValueError(f'Acuity get calendars call failed with response: {response}')
 
     def get_appointments(self):
         response = self.session.get(f"{self.base_url}appointments")
