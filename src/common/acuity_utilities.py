@@ -34,13 +34,26 @@ class AcuityClient:
             acuity_credentials['user-id'],
             acuity_credentials['api-key'],
         )
+        self.logger = utils.get_logger()
 
     def get_calendars(self):
         response = self.session.get(f"{self.base_url}calendars")
         if response.ok:
             return response.json()
         else:
-            raise utils.DetailedValueError(f'Acuity get calendars call failed with response: {response}')
+            raise utils.DetailedValueError(f'Acuity get calendars call failed with response: {response}', details={})
+
+    def get_blocks(self, calendar_id=None):
+        query_parameters = None
+        if calendar_id:
+            query_parameters = {
+                'calendarID': int(calendar_id)
+            }
+        response = self.session.get(f"{self.base_url}blocks", params=query_parameters)
+        if response.ok:
+            return response.json()
+        else:
+            raise utils.DetailedValueError(f'Acuity get blocks call failed with response: {response}', details={})
 
     def get_appointments(self):
         response = self.session.get(f"{self.base_url}appointments")
@@ -69,13 +82,26 @@ class AcuityClient:
         body_json = json.dumps(body_params)
         response = self.session.post(f"{self.base_url}blocks", data=body_json)
         if response.ok:
-            pprint(response.json())
-        return response
+            return response.json()
+        else:
+            raise utils.DetailedValueError(f'Acuity post block call failed with response: {response}', details={})
+
+    def delete_block(self, block_id):
+        response = self.session.delete(f"{self.base_url}blocks/{block_id}")
+        if response.ok:
+            return response.status_code
+        else:
+            error_message = f'Acuity delete block call failed with status code: {response.status_code}'
+            error_dict = {'block_id': block_id}
+            self.logger.error(error_message, extra=error_dict)
+            raise utils.DetailedValueError(error_message, details=error_dict)
 
 
 if __name__ == '__main__':
     acuity_client = AcuityClient()
-    start = datetime.datetime.now() + datetime.timedelta(days=2)
-    end = start + datetime.timedelta(hours=1)
-    response = acuity_client.post_block(4038206, start, end)
-    pprint(response.json())
+    # start = datetime.datetime.now() + datetime.timedelta(days=2)
+    # end = start + datetime.timedelta(hours=1)
+    # response = acuity_client.post_block(4038206, start, end)
+    response = acuity_client.get_blocks(calendar_id=4038206)
+    for b in response:
+        pprint(b)

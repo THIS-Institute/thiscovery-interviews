@@ -54,7 +54,7 @@ class CalendarBlocker:
         )
         return self.acuity_client.post_block(calendar_id, morning_start, morning_end)
 
-    def main(self):
+    def create_blocks(self):
         calendar_ids = self.get_target_calendar_ids()
         created_blocks_counter = 0
         for i in calendar_ids:
@@ -66,9 +66,21 @@ class CalendarBlocker:
                 item_details=block_dict,
                 correlation_id=self.correlation_id
             )
-            pprint(response)
             created_blocks_counter += 1
         return created_blocks_counter
+
+    def delete_blocks(self):
+        blocks = self.ddb_client.scan(self.blocks_table, correlation_id=self.correlation_id)
+        for b in blocks:
+            item_key = b['id']
+            response = self.acuity_client.delete_block(item_key)
+            pprint(response)
+            response = self.ddb_client.delete_item(
+                self.blocks_table,
+                item_key,
+                correlation_id=self.correlation_id
+            )
+            pprint(response)
 
 
 def next_weekday(weekday, d=datetime.date.today()):
@@ -93,9 +105,11 @@ def block_calendars(event, context):
     logger = event['logger']
     correlation_id = event['correlation_id']
     calendar_blocker = CalendarBlocker(logger, correlation_id)
-    print(calendar_blocker.main())
+    blocks_created = calendar_blocker.create_blocks()
+    logger.info(f'Blocked {blocks_created} calendars for next Monday morning')
 
 
 if __name__ == '__main__':
-    calendar_blocker = CalendarBlocker(utils.get_logger(), utils.get_correlation_id())
-    print(calendar_blocker.main())
+    calendar_blocker = CalendarBlocker(utils.get_logger(), None)
+    calendar_blocker.create_blocks()
+    calendar_blocker.delete_blocks()
