@@ -15,7 +15,8 @@
 #   A copy of the GNU Affero General Public License is available in the
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
-import dateutil
+import datetime
+import json
 import requests
 from pprint import pprint
 
@@ -38,17 +39,19 @@ class AcuityClient:
         response = self.session.get(f"{self.base_url}calendars")
         if response.ok:
             pprint(response.json())
+        return response
 
     def get_appointments(self):
         response = self.session.get(f"{self.base_url}appointments")
         if response.ok:
             pprint(response.json())
+        return response
 
     def post_block(self, calendar_id, start, end, notes="automated block"):
         """
 
         Args:
-            calendar_id (str): acuity calendar id
+            calendar_id (int): acuity calendar id
             start (datetime.datetime): start time of block
             end (datetime.datetime): end time of block
             notes (str): any notes to include for the blocked off time
@@ -62,11 +65,16 @@ class AcuityClient:
             "end": end.strftime(self.strftime_format_str),
             "notes": notes,
         }
-        response = self.session.post(f"{self.base_url}blocks", data=body_params)
+        body_json = json.dumps(body_params)
+        response = self.session.post(f"{self.base_url}blocks", data=body_json)
         if response.ok:
             pprint(response.json())
+        return response
 
 
 if __name__ == '__main__':
     acuity_client = AcuityClient()
-    acuity_client.get_calendars()
+    start = datetime.datetime.now() + datetime.timedelta(days=2)
+    end = start + datetime.timedelta(hours=1)
+    response = acuity_client.post_block(4038206, start, end)
+    pprint(response.json())

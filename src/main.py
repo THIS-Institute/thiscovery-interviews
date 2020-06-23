@@ -42,10 +42,33 @@ class CalendarBlocker:
         )
         return [x['id'] for x in calendar_ids]
 
+    def block_next_monday_morning(self, calendar_id):
+        next_monday_date = next_weekday(0)
+        morning_start = datetime.datetime.combine(
+            next_monday_date,
+            datetime.time(hour=0, minute=0)
+        )
+        morning_end = datetime.datetime.combine(
+            next_monday_date,
+            datetime.time(hour=12, minute=0)
+        )
+        return self.acuity_client.post_block(calendar_id, morning_start, morning_end)
+
     def main(self):
         calendar_ids = self.get_target_calendar_ids()
+        created_blocks_counter = 0
         for i in calendar_ids:
-            self.acuity_client.block_monday(i)
+            block_dict = self.block_next_monday_morning(i)
+            response = self.ddb_client.put_item(
+                self.blocks_table,
+                block_dict['id'],
+                item_type='calendar-block',
+                item_details=block_dict,
+                correlation_id=self.correlation_id
+            )
+            pprint(response)
+            created_blocks_counter += 1
+        return created_blocks_counter
 
 
 def next_weekday(weekday, d=datetime.date.today()):
@@ -70,4 +93,9 @@ def block_calendars(event, context):
     logger = event['logger']
     correlation_id = event['correlation_id']
     calendar_blocker = CalendarBlocker(logger, correlation_id)
-    calendar_blocker.main()
+    print(calendar_blocker.main())
+
+
+if __name__ == '__main__':
+    calendar_blocker = CalendarBlocker(utils.get_logger(), utils.get_correlation_id())
+    print(calendar_blocker.main())
