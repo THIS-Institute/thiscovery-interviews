@@ -13,6 +13,7 @@ Resources:
           KeyType: HASH
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
+      TableName: !Sub ${AWS::StackName}-Calendars
   CalendarBlocks:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -25,6 +26,7 @@ Resources:
           KeyType: HASH
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
+      TableName: !Sub ${AWS::StackName}-CalendarBlocks
   BlockCalendars:
     Type: AWS::Serverless::Function
     Properties:

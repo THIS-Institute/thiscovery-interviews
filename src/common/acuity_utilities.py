@@ -15,6 +15,7 @@
 #   A copy of the GNU Affero General Public License is available in the
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
+import dateutil
 import requests
 from pprint import pprint
 
@@ -22,6 +23,9 @@ import common.utilities as utils
 
 
 class AcuityClient:
+    base_url = 'https://acuityscheduling.com/api/v1/'
+    strftime_format_str = '%Y-%m-%d %I:%M%p'
+
     def __init__(self):
         acuity_credentials = utils.get_secret('acuity-connection')
         self.session = requests.Session()
@@ -30,12 +34,39 @@ class AcuityClient:
             acuity_credentials['api-key'],
         )
 
+    def get_calendars(self):
+        response = self.session.get(f"{self.base_url}calendars")
+        if response.ok:
+            pprint(response.json())
+
     def get_appointments(self):
-        response = self.session.get("https://acuityscheduling.com/api/v1/appointments")
+        response = self.session.get(f"{self.base_url}appointments")
+        if response.ok:
+            pprint(response.json())
+
+    def post_block(self, calendar_id, start, end, notes="automated block"):
+        """
+
+        Args:
+            calendar_id (str): acuity calendar id
+            start (datetime.datetime): start time of block
+            end (datetime.datetime): end time of block
+            notes (str): any notes to include for the blocked off time
+
+        Returns:
+
+        """
+        body_params = {
+            "calendarID": calendar_id,
+            "start": start.strftime(self.strftime_format_str),
+            "end": end.strftime(self.strftime_format_str),
+            "notes": notes,
+        }
+        response = self.session.post(f"{self.base_url}blocks", data=body_params)
         if response.ok:
             pprint(response.json())
 
 
 if __name__ == '__main__':
     acuity_client = AcuityClient()
-    acuity_client.get_appointments()
+    acuity_client.get_calendars()
