@@ -17,6 +17,7 @@
 #
 import datetime
 import requests
+from http import HTTPStatus
 from pprint import pprint
 
 import common.utilities as utils
@@ -71,16 +72,20 @@ class CalendarBlocker:
 
     def delete_blocks(self):
         blocks = self.ddb_client.scan(self.blocks_table, correlation_id=self.correlation_id)
+        deleted_blocks_counter = 0
         for b in blocks:
             item_key = b['id']
             response = self.acuity_client.delete_block(item_key)
-            pprint(response)
             response = self.ddb_client.delete_item(
                 self.blocks_table,
                 item_key,
                 correlation_id=self.correlation_id
             )
-            pprint(response)
+            assert response['ResponseMetadata']['HTTPStatusCode'] == HTTPStatus.OK, \
+                f'Call to Dynamodb client delete_item method failed with response: {response}. ' \
+                f'{deleted_blocks_counter} blocks were deleted before this error occurred'
+            deleted_blocks_counter += 1
+        return deleted_blocks_counter
 
 
 def next_weekday(weekday, d=datetime.date.today()):
@@ -107,6 +112,15 @@ def block_calendars(event, context):
     calendar_blocker = CalendarBlocker(logger, correlation_id)
     blocks_created = calendar_blocker.create_blocks()
     logger.info(f'Blocked {blocks_created} calendars for next Monday morning')
+
+
+@utils.lambda_wrapper
+def clear_blocks(event, context):
+    logger = event['logger']
+    correlation_id = event['correlation_id']
+    calendar_blocker = CalendarBlocker(logger, correlation_id)
+    blocks_deleted = calendar_blocker.delete_blocks()
+    logger.info(f'Deleted {blocks_deleted} calendar blocks from Acuity and Dynamodb')
 
 
 if __name__ == '__main__':
