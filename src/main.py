@@ -57,25 +57,37 @@ class CalendarBlocker:
 
     def create_blocks(self):
         calendar_ids = self.get_target_calendar_ids()
-        created_blocks_counter = 0
+        created_blocks_ids = list()
         for i in calendar_ids:
-            block_dict = self.block_next_monday_morning(i)
-            response = self.ddb_client.put_item(
-                self.blocks_table,
-                block_dict['id'],
-                item_type='calendar-block',
-                item_details=block_dict,
-                correlation_id=self.correlation_id
-            )
-            created_blocks_counter += 1
-        return created_blocks_counter
+            try:
+                block_dict = self.block_next_monday_morning(i)
+                created_blocks_ids.append(block_dict['id'])
+                response = self.ddb_client.put_item(
+                    self.blocks_table,
+                    block_dict['id'],
+                    item_type='calendar-block',
+                    item_details=block_dict,
+                    correlation_id=self.correlation_id
+                )
+                assert response['ResponseMetadata']['HTTPStatusCode'] == HTTPStatus.OK, \
+                    f'Call to Dynamodb client put_item method failed with response: {response}. '
+            except Exception as err:
+                self.logger.error(
+                    str(err) + f' {len(created_blocks_ids)} blocks were created before this error occurred. '
+                               f'Created blocks ids: {created_blocks_ids}'
+                )
+                raise
+
+        return created_blocks_ids
 
     def delete_blocks(self):
         blocks = self.ddb_client.scan(self.blocks_table, correlation_id=self.correlation_id)
-        deleted_blocks_counter = 0
+        deleted_blocks_ids = list()
         for b in blocks:
             item_key = b['id']
-            response = self.acuity_client.delete_block(item_key)
+            delete_response = self.acuity_client.delete_block(item_key)
+            assert delete_response == HTTPStatus.NO_CONTENT, f'Call to Acuity client delete_block method failed with response: {delete_response}. ' \
+                f'{len(deleted_blocks_ids)} blocks were deleted before this error occurred. Deleted blocks ids: {deleted_blocks_ids}'
             response = self.ddb_client.delete_item(
                 self.blocks_table,
                 item_key,
