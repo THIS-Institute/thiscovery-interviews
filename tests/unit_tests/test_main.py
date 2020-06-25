@@ -73,4 +73,7 @@ class TestCalendarBlocker(test_utils.BaseTestCase):
 
     def test_get_target_calendar_ids(self):
         result = self.calendar_blocker.get_target_calendar_ids()
-        self.assertIn(str(self.test_calendar['id']), result)
+        self.assertIn(
+            (str(self.test_calendar['id']), self.test_calendar['name']),
+            result
+        )

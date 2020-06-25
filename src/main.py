@@ -49,7 +49,7 @@ class CalendarBlocker:
             'block_monday_morning',
             [True],
         )
-        return [(x['id'], x['name']) for x in calendars]
+        return [(x['id'], x['label']) for x in calendars]
 
     def block_next_monday_morning(self, calendar_id):
         next_monday_date = next_weekday(0)
@@ -65,6 +65,7 @@ class CalendarBlocker:
 
     def create_blocks(self):
         calendars = self.get_target_calendar_ids()
+        self.logger.debug('Calendars to block', extra={'calendars': calendars})
         created_blocks_ids = list()
         affected_calendar_names = list()
         for i, name in calendars:
