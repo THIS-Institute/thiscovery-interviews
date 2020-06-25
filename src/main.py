@@ -102,7 +102,7 @@ class CalendarBlocker:
                 assert delete_response == HTTPStatus.NO_CONTENT, f'Call to Acuity client delete_block method failed with response: {delete_response}. ' \
                     f'{len(deleted_blocks_ids)} blocks were deleted before this error occurred. Deleted blocks ids: {deleted_blocks_ids}'
                 deleted_blocks_ids.append(item_key)
-                affected_calendar_names.append(self.acuity_client.get_calendar_by_id(b['details']['calendarID']))
+                affected_calendar_names.append(self.acuity_client.get_calendar_by_id(b['details']['calendarID'])['name'])
                 response = self.ddb_client.delete_item(
                     self.blocks_table,
                     item_key,
