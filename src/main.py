@@ -155,7 +155,7 @@ def block_calendars(event, context):
             message=f"Failed to block Monday morning (00:00 to 12:00) in Acuity calendars. Error message:\n "
                     f"{err}\n\n"
                     f"Please refer to CloudWatch logs for more details.",
-            subject=f"[thiscovery-interviews notification] ERROR: Failed to create Monday morning blocks in Acuity calendars"
+            subject=f"[thiscovery-interviews notification] ERROR: Failed to create Monday morning blocks in calendars"
         )
 
 
@@ -170,12 +170,12 @@ def clear_blocks(event, context):
                     extra={'blocks_deleted': blocks_deleted, 'affected_calendars': affected_calendars})
         calendar_blocker.notify_sns_topic(
             message=f"Deleted Monday morning (00:00 to 12:00) blocks on the following Acuity calendars: {', '.join(affected_calendars)}.",
-            subject=f"[thiscovery-interviews notification] SUCCESS: Monday morning block removed in {len(affected_calendars)} Acuity calendars"
+            subject=f"[thiscovery-interviews notification] SUCCESS: Monday morning block removed from calendars"
         )
     except Exception as err:
         calendar_blocker.notify_sns_topic(
             message=f"Failed to remove Monday morning (00:00 to 12:00) block in Acuity calendars. Error message:\n "
                     f"{err}\n\n"
                     f"Please refer to CloudWatch logs for more details.",
-            subject=f"[thiscovery-interviews notification] ERROR: Failed to delete Monday morning blocks in Acuity calendars"
+            subject=f"[thiscovery-interviews notification] ERROR: Failed to delete Monday morning blocks in calendars"
         )
