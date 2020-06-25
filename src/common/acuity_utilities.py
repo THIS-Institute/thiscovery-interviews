@@ -35,13 +35,21 @@ class AcuityClient:
             acuity_credentials['api-key'],
         )
         self.logger = utils.get_logger()
+        self.calendars = None
 
     def get_calendars(self):
         response = self.session.get(f"{self.base_url}calendars")
         if response.ok:
+            calendars = response.json()
+            self.calendars = {x['id']: x for x in calendars}
             return response.json()
         else:
             raise utils.DetailedValueError(f'Acuity get calendars call failed with response: {response}', details={})
+
+    def get_calendar_by_id(self, calendar_id):
+        if self.calendars is None:
+            self.get_calendars()
+        return self.calendars[calendar_id]
 
     def get_blocks(self, calendar_id=None):
         query_parameters = None

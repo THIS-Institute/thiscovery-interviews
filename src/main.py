@@ -23,25 +23,33 @@ from pprint import pprint
 import common.utilities as utils
 from common.acuity_utilities import AcuityClient
 from common.dynamodb_utilities import Dynamodb, STACK_NAME
-
+from common.sns_utilities import SnsClient
 
 class CalendarBlocker:
     def __init__(self, logger, correlation_id):
-        env_name = utils.get_environment_name()
         self.logger = logger
         self.correlation_id = correlation_id
-        self.calendars_table = 'Calendars'  # f'{STACK_NAME}-{env_name}-Calendars'
-        self.blocks_table = 'CalendarBlocks'  # f'{STACK_NAME}-{env_name}-CalendarBlocks'
+        self.calendars_table = 'Calendars'
+        self.blocks_table = 'CalendarBlocks'
         self.ddb_client = Dynamodb()
         self.acuity_client = AcuityClient()
+        self.sns_client = SnsClient()
+
+    def notify_sns_topic(self, message, subject):
+        topic_arn = utils.get_secret('sns-topics')['interview-notifications-arn']
+        self.sns_client.publish(
+            message=message,
+            topic_arn=topic_arn,
+            Subject=subject,
+        )
 
     def get_target_calendar_ids(self):
-        calendar_ids = self.ddb_client.scan(
+        calendars = self.ddb_client.scan(
             self.calendars_table,
             'block_monday_morning',
             [True],
         )
-        return [x['id'] for x in calendar_ids]
+        return [(x['id'], x['name']) for x in calendars]
 
     def block_next_monday_morning(self, calendar_id):
         next_monday_date = next_weekday(0)
@@ -56,12 +64,14 @@ class CalendarBlocker:
         return self.acuity_client.post_block(calendar_id, morning_start, morning_end)
 
     def create_blocks(self):
-        calendar_ids = self.get_target_calendar_ids()
+        calendars = self.get_target_calendar_ids()
         created_blocks_ids = list()
-        for i in calendar_ids:
+        affected_calendar_names = list()
+        for i, name in calendars:
             try:
                 block_dict = self.block_next_monday_morning(i)
                 created_blocks_ids.append(block_dict['id'])
+                affected_calendar_names.append(name)
                 response = self.ddb_client.put_item(
                     self.blocks_table,
                     block_dict['id'],
@@ -78,11 +88,12 @@ class CalendarBlocker:
                 )
                 raise
 
-        return created_blocks_ids
+        return created_blocks_ids, affected_calendar_names
 
     def delete_blocks(self):
         blocks = self.ddb_client.scan(self.blocks_table, correlation_id=self.correlation_id)
         deleted_blocks_ids = list()
+        affected_calendar_names = list()
         for b in blocks:
             try:
                 item_key = b['id']
@@ -90,6 +101,7 @@ class CalendarBlocker:
                 assert delete_response == HTTPStatus.NO_CONTENT, f'Call to Acuity client delete_block method failed with response: {delete_response}. ' \
                     f'{len(deleted_blocks_ids)} blocks were deleted before this error occurred. Deleted blocks ids: {deleted_blocks_ids}'
                 deleted_blocks_ids.append(item_key)
+                affected_calendar_names.append(self.acuity_client.get_calendar_by_id(b['calendarID']))
                 response = self.ddb_client.delete_item(
                     self.blocks_table,
                     item_key,
@@ -104,7 +116,7 @@ class CalendarBlocker:
                                f'Deleted blocks ids: {deleted_blocks_ids}'
                 )
                 raise
-        return deleted_blocks_ids
+        return deleted_blocks_ids, affected_calendar_names
 
 
 def next_weekday(weekday, d=datetime.date.today()):
@@ -129,8 +141,21 @@ def block_calendars(event, context):
     logger = event['logger']
     correlation_id = event['correlation_id']
     calendar_blocker = CalendarBlocker(logger, correlation_id)
-    blocks_created = calendar_blocker.create_blocks()
-    logger.info(f'Blocked {blocks_created} calendars for next Monday morning')
+    try:
+        blocks_created_ids, affected_calendars = calendar_blocker.create_blocks()
+        logger.info(f'Blocked {len(blocks_created_ids)} calendars for next Monday morning',
+                    extra={'blocks_created_ids': blocks_created_ids, 'affected_calendars': affected_calendars})
+        calendar_blocker.notify_sns_topic(
+            message=f"Monday morning (00:00 to 12:00) was just blocked on the following Acuity calendars: {', '.join(affected_calendars)}.",
+            subject=f"[thiscovery-interviews notification] SUCCESS: Monday morning blocked in {len(affected_calendars)} Acuity calendars"
+        )
+    except Exception as err:
+        calendar_blocker.notify_sns_topic(
+            message=f"Failed to block Monday morning (00:00 to 12:00) in Acuity calendars. Error message:\n "
+                    f"{err}\n\n"
+                    f"Please refer to CloudWatch logs for more details.",
+            subject=f"[thiscovery-interviews notification] ERROR: Failed to create Monday morning blocks in Acuity calendars"
+        )
 
 
 @utils.lambda_wrapper
@@ -138,5 +163,18 @@ def clear_blocks(event, context):
     logger = event['logger']
     correlation_id = event['correlation_id']
     calendar_blocker = CalendarBlocker(logger, correlation_id)
-    blocks_deleted = calendar_blocker.delete_blocks()
-    logger.info(f'Deleted {blocks_deleted} calendar blocks from Acuity and Dynamodb')
+    try:
+        blocks_deleted, affected_calendars = calendar_blocker.delete_blocks()
+        logger.info(f'Deleted {len(blocks_deleted)} calendar blocks from Acuity and Dynamodb',
+                    extra={'blocks_deleted': blocks_deleted, 'affected_calendars': affected_calendars})
+        calendar_blocker.notify_sns_topic(
+            message=f"Deleted Monday morning (00:00 to 12:00) blocks on the following Acuity calendars: {', '.join(affected_calendars)}.",
+            subject=f"[thiscovery-interviews notification] SUCCESS: Monday morning block removed in {len(affected_calendars)} Acuity calendars"
+        )
+    except Exception as err:
+        calendar_blocker.notify_sns_topic(
+            message=f"Failed to remove Monday morning (00:00 to 12:00) block in Acuity calendars. Error message:\n "
+                    f"{err}\n\n"
+                    f"Please refer to CloudWatch logs for more details.",
+            subject=f"[thiscovery-interviews notification] ERROR: Failed to delete Monday morning blocks in Acuity calendars"
+        )
