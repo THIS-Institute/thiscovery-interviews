@@ -84,20 +84,27 @@ class CalendarBlocker:
         blocks = self.ddb_client.scan(self.blocks_table, correlation_id=self.correlation_id)
         deleted_blocks_ids = list()
         for b in blocks:
-            item_key = b['id']
-            delete_response = self.acuity_client.delete_block(item_key)
-            assert delete_response == HTTPStatus.NO_CONTENT, f'Call to Acuity client delete_block method failed with response: {delete_response}. ' \
-                f'{len(deleted_blocks_ids)} blocks were deleted before this error occurred. Deleted blocks ids: {deleted_blocks_ids}'
-            response = self.ddb_client.delete_item(
-                self.blocks_table,
-                item_key,
-                correlation_id=self.correlation_id
-            )
-            assert response['ResponseMetadata']['HTTPStatusCode'] == HTTPStatus.OK, \
-                f'Call to Dynamodb client delete_item method failed with response: {response}. ' \
-                f'{deleted_blocks_counter} blocks were deleted before this error occurred'
-            deleted_blocks_counter += 1
-        return deleted_blocks_counter
+            try:
+                item_key = b['id']
+                delete_response = self.acuity_client.delete_block(item_key)
+                assert delete_response == HTTPStatus.NO_CONTENT, f'Call to Acuity client delete_block method failed with response: {delete_response}. ' \
+                    f'{len(deleted_blocks_ids)} blocks were deleted before this error occurred. Deleted blocks ids: {deleted_blocks_ids}'
+                deleted_blocks_ids.append(item_key)
+                response = self.ddb_client.delete_item(
+                    self.blocks_table,
+                    item_key,
+                    correlation_id=self.correlation_id
+                )
+                assert response['ResponseMetadata']['HTTPStatusCode'] == HTTPStatus.OK, \
+                    f'Call to Dynamodb client delete_item method failed with response: {response}. ' \
+                    f'{len(deleted_blocks_ids)} blocks were deleted before this error occurred. Deleted blocks ids: {deleted_blocks_ids}'
+            except Exception as err:
+                self.logger.error(
+                    str(err) + f' {len(deleted_blocks_ids)} blocks were created before this error occurred. '
+                               f'Deleted blocks ids: {deleted_blocks_ids}'
+                )
+                raise
+        return deleted_blocks_ids
 
 
 def next_weekday(weekday, d=datetime.date.today()):
