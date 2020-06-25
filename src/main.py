@@ -84,8 +84,8 @@ class CalendarBlocker:
                     f'Call to Dynamodb client put_item method failed with response: {response}. '
             except Exception as err:
                 self.logger.error(
-                    str(err) + f' {len(created_blocks_ids)} blocks were created before this error occurred. '
-                               f'Created blocks ids: {created_blocks_ids}'
+                    f'{repr(err)} {len(created_blocks_ids)} blocks were created before this error occurred. '
+                    f'Created blocks ids: {created_blocks_ids}'
                 )
                 raise
 
@@ -102,7 +102,7 @@ class CalendarBlocker:
                 assert delete_response == HTTPStatus.NO_CONTENT, f'Call to Acuity client delete_block method failed with response: {delete_response}. ' \
                     f'{len(deleted_blocks_ids)} blocks were deleted before this error occurred. Deleted blocks ids: {deleted_blocks_ids}'
                 deleted_blocks_ids.append(item_key)
-                affected_calendar_names.append(self.acuity_client.get_calendar_by_id(b['calendarID']))
+                affected_calendar_names.append(self.acuity_client.get_calendar_by_id(b['details']['calendarID']))
                 response = self.ddb_client.delete_item(
                     self.blocks_table,
                     item_key,
@@ -113,8 +113,8 @@ class CalendarBlocker:
                     f'{len(deleted_blocks_ids)} blocks were deleted before this error occurred. Deleted blocks ids: {deleted_blocks_ids}'
             except Exception as err:
                 self.logger.error(
-                    str(err) + f' {len(deleted_blocks_ids)} blocks were created before this error occurred. '
-                               f'Deleted blocks ids: {deleted_blocks_ids}'
+                    f'{repr(err)} {len(deleted_blocks_ids)} blocks were created before this error occurred. '
+                    f'Deleted blocks ids: {deleted_blocks_ids}'
                 )
                 raise
         return deleted_blocks_ids, affected_calendar_names
@@ -153,7 +153,7 @@ def block_calendars(event, context):
     except Exception as err:
         calendar_blocker.notify_sns_topic(
             message=f"Failed to block Monday morning (00:00 to 12:00) in Acuity calendars. Error message:\n "
-                    f"{err}\n\n"
+                    f"{repr(err)}\n\n"
                     f"Please refer to CloudWatch logs for more details.",
             subject=f"[thiscovery-interviews notification] ERROR: Failed to create Monday morning blocks in calendars"
         )
@@ -175,7 +175,7 @@ def clear_blocks(event, context):
     except Exception as err:
         calendar_blocker.notify_sns_topic(
             message=f"Failed to remove Monday morning (00:00 to 12:00) block in Acuity calendars. Error message:\n "
-                    f"{err}\n\n"
+                    f"{repr(err)}\n\n"
                     f"Please refer to CloudWatch logs for more details.",
             subject=f"[thiscovery-interviews notification] ERROR: Failed to delete Monday morning blocks in calendars"
         )
