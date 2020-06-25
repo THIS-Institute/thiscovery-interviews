@@ -48,6 +48,8 @@ Resources:
             TableName: !Ref Calendars
         - AWSSecretsManagerGetSecretValuePolicy:
             SecretArn: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/${EnvironmentTagName}/*
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt InterviewNotifications.TopicName
       Environment:
         Variables:
           TABLE_NAME: !Ref CalendarBlocks
@@ -55,6 +57,8 @@ Resources:
           TABLE_NAME_2: !Ref Calendars
           TABLE_ARN_2: !GetAtt Calendars.Arn
           SECRETS_NAMESPACE: !Sub /${EnvironmentTagName}/
+          TOPIC_NAME: !GetAtt InterviewNotifications.TopicName
+          TOPIC_ARN: !Ref InterviewNotifications
       Events:
         Timer:
           Type: Schedule
@@ -81,6 +85,8 @@ Resources:
             TableName: !Ref CalendarBlocks
         - AWSSecretsManagerGetSecretValuePolicy:
             SecretArn: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/${EnvironmentTagName}/*
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt InterviewNotifications.TopicName
       Events:
         Timer2:
           Type: Schedule
@@ -93,6 +99,12 @@ Resources:
           TABLE_NAME: !Ref CalendarBlocks
           TABLE_ARN: !GetAtt CalendarBlocks.Arn
           SECRETS_NAMESPACE: !Sub /${EnvironmentTagName}/
+          TOPIC_NAME: !GetAtt InterviewNotifications.TopicName
+          TOPIC_ARN: !Ref InterviewNotifications
+  InterviewNotifications:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${AWS::StackName}-InterviewNotifications
 Parameters:
   StackTagName:
     Type: String
