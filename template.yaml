@@ -109,8 +109,8 @@ Resources:
     Type: AWS::Serverless::Api
     Properties:
       Name: !Sub
-        - ${ResourceName} From Stack ${StackTagName} Environment ${EnvironmentTagName}
-        - ResourceName: InterviewsApi
+        - ${ResourceName} Env ${EnvironmentTagName}
+        - ResourceName: Thiscovery Interviews API
       StageName: !Ref EnvironmentAPIGatewayStageName
       DefinitionBody:
         swagger: '2.0'
@@ -118,10 +118,12 @@ Resources:
         paths:
           /v1/interview-appointment:
             post:
+              security:
+                - api_key: []
               x-amazon-apigateway-integration:
                 httpMethod: POST
                 type: aws_proxy
-                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InterviewAppointmentApi.Arn}/invocations
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InterviewAppointment.Arn}/invocations
               responses: {}
       EndpointConfiguration: REGIONAL
       TracingEnabled: true
@@ -137,13 +139,14 @@ Resources:
           KeyType: HASH
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
-  InterviewAppointmentApi:
+      TableName: !Sub ${AWS::StackName}-Appointments
+  InterviewAppointment:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub ${AWS::StackName}-InterviewAppointmentApi
+      FunctionName: !Sub ${AWS::StackName}-InterviewAppointment
       Description: !Sub
         - Stack ${StackTagName} Environment ${EnvironmentTagName} Function ${ResourceName}
-        - ResourceName: InterviewAppointmentApi
+        - ResourceName: InterviewAppointment
       CodeUri: src
       Handler: appointments.interview_appointment_api
       Runtime: python3.7
