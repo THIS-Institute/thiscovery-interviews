@@ -16,11 +16,25 @@
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
 import datetime
+import functools
 import json
 import requests
 from pprint import pprint
 
 import common.utilities as utils
+
+
+def response_handler(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        response = func(*args, **kwargs)
+        if response.ok:
+            pprint(response.json())
+        else:
+            logger = utils.get_logger()
+            logger.error(f'Acuity API call failed with response: {response}', extra={'response.content': response.content})
+            raise utils.DetailedValueError(f'Acuity API call failed with response: {response}', details={'response': response})
+    return wrapper
 
 
 class AcuityClient:
@@ -36,6 +50,27 @@ class AcuityClient:
         )
         self.logger = utils.get_logger()
         self.calendars = None
+
+    @response_handler
+    def get_webhooks(self):
+        return self.session.get(f"{self.base_url}webhooks")
+
+    @response_handler
+    def post_webhooks(self, appointment_event, target=None):
+        if target is None:
+            env_name = utils.get_environment_name()
+            if env_name == 'prod':
+                api_base_url = f'https://api.thiscovery.org'
+            else:
+                api_base_url = f'https://{env_name}-api.thiscovery.org'
+            target = f'{api_base_url}/v1/log-request'
+
+        body_params = {
+            "event": appointment_event,
+            "target": target,
+        }
+        body_json = json.dumps(body_params)
+        return self.session.post(f"{self.base_url}webhooks", data=body_json)
 
     def get_calendars(self):
         response = self.session.get(f"{self.base_url}calendars")
@@ -103,3 +138,9 @@ class AcuityClient:
             error_dict = {'block_id': block_id}
             self.logger.error(error_message, extra=error_dict)
             raise utils.DetailedValueError(error_message, details=error_dict)
+
+
+if __name__ == '__main__':
+    client = AcuityClient()
+    client.get_webhooks()
+    # client.post_webhooks('appointment.scheduled')
