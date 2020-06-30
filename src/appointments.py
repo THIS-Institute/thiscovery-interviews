@@ -15,7 +15,9 @@
 #   A copy of the GNU Affero General Public License is available in the
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
+import json
 import re
+from http import HTTPStatus
 
 import common.utilities as utils
 from common.acuity_utilities import AcuityClient
@@ -40,12 +42,34 @@ class AcuityAppointmentEvent:
             self.logger.error('event_pattern does not match acuity_event', extra={'acuity_event': acuity_event})
             raise
 
-    def get_appointment_email(self):
-        return self.acuity_client.get_appointment_by_id(self.appointment_id)['email']
+    @staticmethod
+    def get_user_id_from_core_api(email):
+        # todo: this same code is used in stack s3-to-sdhs; create a core api client in utilities to avoid duplication
+        env_name = utils.get_environment_name()
+        if env_name == 'prod':
+            core_api_url = 'https://api.thiscovery.org/'
+        else:
+            core_api_url = f'https://{env_name}-api.thiscovery.org/'
+        result = utils.aws_get('v1/user', core_api_url, params={'email': email})
+
+        assert result['statusCode'] == HTTPStatus.OK, f'Call to core API returned error: {result}'
+        return json.loads(result['body'])['id']
+
+    def get_appointment_details(self):
+        r = self.acuity_client.get_appointment_by_id(self.appointment_id)
+        return r['email'], r['appointmentTypeID']
 
     def main(self):
         self.logger.info('Parsed Acuity event', extra={'action': self.action, 'appointment_id': self.appointment_id, 'type_id': self.type_id})
-        email = self.get_appointment_email()
+        email, appointment_type_id = self.get_appointment_details()
+        assert str(appointment_type_id) == self.type_id, f'Unexpected appointment type id ({appointment_type_id}) in get_appointment_by_id response. ' \
+                                                         f'Expected: {self.type_id}.'
+        try:
+            user_id = self.get_user_id_from_core_api(email)
+        except Exception as err:
+            self.logger.error(f'Failed to retrieve user_id for {email}', extra={'exception': repr(err)})
+            raise err
+
 
 
 @utils.lambda_wrapper

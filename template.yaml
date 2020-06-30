@@ -125,7 +125,7 @@ Resources:
               responses: {}
       EndpointConfiguration: REGIONAL
       TracingEnabled: true
-  Appointments:
+  AppontmentTypes:
     Type: AWS::DynamoDB::Table
     Properties:
       AttributeDefinitions:
@@ -137,7 +137,7 @@ Resources:
           KeyType: HASH
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
-      TableName: !Sub ${AWS::StackName}-Appointments
+      TableName: !Sub ${AWS::StackName}-AppontmentTypes
   InterviewAppointment:
     Type: AWS::Serverless::Function
     Properties:
@@ -154,7 +154,7 @@ Resources:
       Policies:
         - AWSXrayWriteOnlyAccess
         - DynamoDBCrudPolicy:
-            TableName: !Ref Appointments
+            TableName: !Ref AppontmentTypes
         - AWSSecretsManagerGetSecretValuePolicy:
             SecretArn: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/${EnvironmentTagName}/*
         - SNSPublishMessagePolicy:
@@ -168,8 +168,8 @@ Resources:
             RestApiId: !Ref InterviewsApi
       Environment:
         Variables:
-          TABLE_NAME: !Ref Appointments
-          TABLE_ARN: !GetAtt Appointments.Arn
+          TABLE_NAME: !Ref AppontmentTypes
+          TABLE_ARN: !GetAtt AppontmentTypes.Arn
           SECRETS_NAMESPACE: !Sub /${EnvironmentTagName}/
           TOPIC_NAME: !GetAtt InterviewNotifications.TopicName
           TOPIC_ARN: !Ref InterviewNotifications
