@@ -6,7 +6,7 @@ EVENTS = [
     'appointment.scheduled',
     'appointment.rescheduled',
     'appointment.canceled',
-    'appointment.changed',
+    # 'appointment.changed',
 ]
 
 
