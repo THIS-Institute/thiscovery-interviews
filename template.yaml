@@ -118,8 +118,6 @@ Resources:
         paths:
           /v1/interview-appointment:
             post:
-              security:
-                - api_key: []
               x-amazon-apigateway-integration:
                 httpMethod: POST
                 type: aws_proxy
