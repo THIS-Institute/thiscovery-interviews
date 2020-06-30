@@ -45,7 +45,7 @@ class AcuityClient:
     base_url = 'https://acuityscheduling.com/api/v1/'
     strftime_format_str = '%Y-%m-%d %I:%M%p'
 
-    def __init__(self):
+    def __init__(self, correlation_id=None):
         acuity_credentials = utils.get_secret('acuity-connection')
         self.session = requests.Session()
         self.session.auth = (
@@ -54,6 +54,7 @@ class AcuityClient:
         )
         self.logger = utils.get_logger()
         self.calendars = None
+        self.correlation_id = correlation_id
 
     @response_handler
     def get_webhooks(self):
@@ -94,23 +95,22 @@ class AcuityClient:
             self.get_calendars()
         return self.calendars[calendar_id]
 
+    @response_handler
     def get_blocks(self, calendar_id=None):
         query_parameters = None
         if calendar_id:
             query_parameters = {
                 'calendarID': int(calendar_id)
             }
-        response = self.session.get(f"{self.base_url}blocks", params=query_parameters)
-        if response.ok:
-            return response.json()
-        else:
-            raise utils.DetailedValueError(f'Acuity get blocks call failed with response: {response}', details={})
+        return self.session.get(f"{self.base_url}blocks", params=query_parameters)
 
+    @response_handler
     def get_appointments(self):
-        response = self.session.get(f"{self.base_url}appointments")
-        if response.ok:
-            pprint(response.json())
-        return response
+        return self.session.get(f"{self.base_url}appointments")
+
+    @response_handler
+    def get_appointment_by_id(self, appointment_id):
+        return self.session.get(f"{self.base_url}appointments/{appointment_id}")
 
     def post_block(self, calendar_id, start, end, notes="automated block"):
         """
@@ -150,5 +150,6 @@ class AcuityClient:
 
 if __name__ == '__main__':
     client = AcuityClient()
-    pprint(client.get_webhooks())
+    # pprint(client.get_webhooks())
     # client.post_webhooks('appointment.scheduled')
+    pprint(client.get_appointment_by_id(399979594))

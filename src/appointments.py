@@ -18,11 +18,13 @@
 import re
 
 import common.utilities as utils
+from common.acuity_utilities import AcuityClient
 
 
 class AcuityAppointmentEvent:
-    def __init__(self, acuity_event, logger):
+    def __init__(self, acuity_event, logger, correlation_id=None):
         self.logger = logger
+        self.acuity_client = AcuityClient(correlation_id=correlation_id)
         event_pattern = re.compile(
             r"action=appointment\.(?P<action>scheduled|rescheduled|canceled|changed)"
             r"&id=(?P<appointment_id>\d+)"
@@ -38,13 +40,19 @@ class AcuityAppointmentEvent:
             self.logger.error('event_pattern does not match acuity_event', extra={'acuity_event': acuity_event})
             raise
 
+    def get_appointment_email(self):
+        return self.acuity_client.get_appointment_by_id(self.appointment_id)['email']
+
     def main(self):
         self.logger.info('Parsed Acuity event', extra={'action': self.action, 'appointment_id': self.appointment_id, 'type_id': self.type_id})
+        email = self.get_appointment_email()
 
 
 @utils.lambda_wrapper
 def interview_appointment_api(event, context):
     logger = event['logger']
+    correlation_id = event['correlation_id']
     acuity_event = event['body']
-    appointment_event = AcuityAppointmentEvent(acuity_event, logger)
+    appointment_event = AcuityAppointmentEvent(acuity_event, logger, correlation_id=correlation_id)
     return appointment_event.main()
+
