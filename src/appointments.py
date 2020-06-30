@@ -39,11 +39,10 @@ class AcuityAppointmentEvent:
             raise
 
     def main(self):
-        self.logger('Parsed Acuity event', extra={'action': self.action, 'appointment_id': self.appointment_id, 'type_id': self.type_id})
+        self.logger.info('Parsed Acuity event', extra={'action': self.action, 'appointment_id': self.appointment_id, 'type_id': self.type_id})
 
 
 @utils.lambda_wrapper
-# @utils.api_error_handler
 def interview_appointment_api(event, context):
     logger = event['logger']
     acuity_event = event['body']
