@@ -24,6 +24,8 @@ from common.acuity_utilities import AcuityClient
 
 
 class AcuityAppointmentEvent:
+    appointment_type_table = 'AppointmentTypes'
+
     def __init__(self, acuity_event, logger, correlation_id=None):
         self.logger = logger
         self.acuity_client = AcuityClient(correlation_id=correlation_id)
@@ -58,6 +60,9 @@ class AcuityAppointmentEvent:
     def get_appointment_details(self):
         r = self.acuity_client.get_appointment_by_id(self.appointment_id)
         return r['email'], r['appointmentTypeID']
+
+    def get_project_task_id(self):
+
 
     def main(self):
         self.logger.info('Parsed Acuity event', extra={'action': self.action, 'appointment_id': self.appointment_id, 'type_id': self.type_id})
