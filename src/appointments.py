@@ -43,7 +43,7 @@ class AcuityAppointmentEvent:
 
 
 @utils.lambda_wrapper
-@utils.api_error_handler
+# @utils.api_error_handler
 def interview_appointment_api(event, context):
     logger = event['logger']
     acuity_event = event['body']

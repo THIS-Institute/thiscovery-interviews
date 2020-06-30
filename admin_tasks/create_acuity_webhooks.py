@@ -11,10 +11,12 @@ EVENTS = [
 
 
 def main():
+    logger = utils.get_logger()
     ac = AcuityClient()
     for e in EVENTS:
         try:
-            ac.post_webhooks(e)
+            response = ac.post_webhooks(e)
+            logger.info('Created webhook', extra={'response': response})
         except utils.DetailedValueError:
             pass
 

@@ -20,6 +20,7 @@ import functools
 import json
 import requests
 from pprint import pprint
+from simplejson.errors import JSONDecodeError
 
 import common.utilities as utils
 
@@ -29,7 +30,10 @@ def response_handler(func):
     def wrapper(*args, **kwargs):
         response = func(*args, **kwargs)
         if response.ok:
-            pprint(response.json())
+            try:
+                return response.json()
+            except JSONDecodeError:
+                return response
         else:
             logger = utils.get_logger()
             logger.error(f'Acuity API call failed with response: {response}', extra={'response.content': response.content})
@@ -56,14 +60,18 @@ class AcuityClient:
         return self.session.get(f"{self.base_url}webhooks")
 
     @response_handler
+    def delete_webhooks(self, webhook_id):
+        return self.session.delete(f"{self.base_url}webhooks/{webhook_id}")
+
+    @response_handler
     def post_webhooks(self, appointment_event, target=None):
         if target is None:
             env_name = utils.get_environment_name()
             if env_name == 'prod':
-                api_base_url = f'https://api.thiscovery.org'
+                api_base_url = f'https://interviews-api.thiscovery.org'
             else:
-                api_base_url = f'https://{env_name}-api.thiscovery.org'
-            target = f'{api_base_url}/v1/log-request'
+                api_base_url = f'https://{env_name}-interviews-api.thiscovery.org'
+            target = f'{api_base_url}/v1/interview-appointment'
 
         body_params = {
             "event": appointment_event,
@@ -142,5 +150,5 @@ class AcuityClient:
 
 if __name__ == '__main__':
     client = AcuityClient()
-    client.get_webhooks()
+    pprint(client.get_webhooks())
     # client.post_webhooks('appointment.scheduled')
