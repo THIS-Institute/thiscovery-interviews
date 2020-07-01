@@ -105,6 +105,74 @@ Resources:
     Type: AWS::SNS::Topic
     Properties:
       TopicName: !Sub ${AWS::StackName}-InterviewNotifications
+  InterviewsApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub
+        - ${ResourceName} Env ${EnvironmentTagName}
+        - ResourceName: Thiscovery Interviews API
+      StageName: !Ref EnvironmentAPIGatewayStageName
+      DefinitionBody:
+        swagger: '2.0'
+        info: {}
+        paths:
+          /v1/interview-appointment:
+            post:
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InterviewAppointment.Arn}/invocations
+              responses: {}
+      EndpointConfiguration: REGIONAL
+      TracingEnabled: true
+  AppointmentTypes:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      TableName: !Sub ${AWS::StackName}-AppointmentTypes
+  InterviewAppointment:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-InterviewAppointment
+      Description: !Sub
+        - Stack ${StackTagName} Environment ${EnvironmentTagName} Function ${ResourceName}
+        - ResourceName: InterviewAppointment
+      CodeUri: src
+      Handler: appointments.interview_appointment_api
+      Runtime: python3.7
+      MemorySize: !Ref EnvConfiglambdamemorysizeAsString
+      Timeout: !Ref EnvConfiglambdatimeoutAsString
+      Tracing: Active
+      Policies:
+        - AWSXrayWriteOnlyAccess
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AppointmentTypes
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/${EnvironmentTagName}/*
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt InterviewNotifications.TopicName
+      Events:
+        InterviewsApiPOSTv1interviewappointment:
+          Type: Api
+          Properties:
+            Path: /v1/interview-appointment
+            Method: POST
+            RestApiId: !Ref InterviewsApi
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref AppointmentTypes
+          TABLE_ARN: !GetAtt AppointmentTypes.Arn
+          SECRETS_NAMESPACE: !Sub /${EnvironmentTagName}/
+          TOPIC_NAME: !GetAtt InterviewNotifications.TopicName
+          TOPIC_ARN: !Ref InterviewNotifications
 Parameters:
   StackTagName:
     Type: String
@@ -118,6 +186,9 @@ Parameters:
   EnvConfiglambdatimeoutAsString:
     Type: AWS::SSM::Parameter::Value<String>
     Default: /<EnvironmentName>/lambda/timeout
+  EnvironmentAPIGatewayStageName:
+    Type: String
+    Description: Environment name used for API Gateway Stage names (injected by Stackery at deployment time)
 Metadata:
   EnvConfigParameters:
     EnvConfiglambdamemorysizeAsString: lambda.memory-size
