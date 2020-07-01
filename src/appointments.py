@@ -77,6 +77,7 @@ class AcuityAppointmentEvent:
 
         if appointment_type_status in ['active']:
             user_task_id = self.core_api_client.get_user_task_id_for_project(user_id, project_task_id)
+            self.logger.debug('user_task_id', extra={'user_task_id': user_task_id})
             result = self.core_api_client.set_user_task_completed(user_task_id)
             self.logger.info(f'Updated user task {user_task_id} status to complete')
             return result
