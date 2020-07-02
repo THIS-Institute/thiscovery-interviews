@@ -4,8 +4,8 @@ from src.common.acuity_utilities import AcuityClient
 
 EVENTS = [
     'appointment.scheduled',
-    'appointment.rescheduled',
-    'appointment.canceled',
+    # 'appointment.rescheduled',
+    # 'appointment.canceled',
     # 'appointment.changed',
 ]
 

@@ -81,9 +81,14 @@ class AcuityAppointmentEvent:
             result = self.core_api_client.set_user_task_completed(user_task_id)
             self.logger.info(f'Updated user task {user_task_id} status to complete')
             return result
+        else:
+            self.logger.info('Ignored appointment', extra={'appointment_id': self.appointment_id, 'appointment_type_id': self.type_id,
+                                                           'appointment_type_status': appointment_type_status})
+            return {"statusCode": HTTPStatus.NO_CONTENT}
 
 
 @utils.lambda_wrapper
+@utils.api_error_handler
 def interview_appointment_api(event, context):
     logger = event['logger']
     correlation_id = event['correlation_id']

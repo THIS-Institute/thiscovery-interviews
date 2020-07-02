@@ -47,4 +47,4 @@ class CoreApiClient:
     def set_user_task_completed(self, user_task_id):
         result = utils.aws_request('PUT', 'v1/user-task-completed', self.base_url, params={'user_task_id': user_task_id})
         assert result['statusCode'] == HTTPStatus.NO_CONTENT, f'Call to core API returned error: {result}'
-        return result['statusCode']
+        return result

@@ -67,5 +67,5 @@ class TestAcuityAppointmentEvent(test_utils.BaseTestCase):
         self.assertEqual(self.test_data['status'], status)
 
     def test_main(self):
-        status_code = self.aae.main()
+        status_code = self.aae.main()['statusCode']
         self.assertEqual(HTTPStatus.NO_CONTENT, status_code)
