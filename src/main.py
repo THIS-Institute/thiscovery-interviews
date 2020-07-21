@@ -25,6 +25,7 @@ from common.acuity_utilities import AcuityClient
 from common.dynamodb_utilities import Dynamodb, STACK_NAME
 from common.sns_utilities import SnsClient
 
+
 class CalendarBlocker:
     def __init__(self, logger, correlation_id):
         self.logger = logger
@@ -78,6 +79,10 @@ class CalendarBlocker:
                     block_dict['id'],
                     item_type='calendar-block',
                     item_details=block_dict,
+                    item={
+                        'status': 'new',
+                        'error_message': '',
+                    },
                     correlation_id=self.correlation_id
                 )
                 assert response['ResponseMetadata']['HTTPStatusCode'] == HTTPStatus.OK, \
@@ -91,13 +96,30 @@ class CalendarBlocker:
 
         return created_blocks_ids, affected_calendar_names
 
+    def mark_failed_block_deletion(self, item_key, exception):
+        error_message = repr(exception)
+        self.logger.error(error_message)
+        self.ddb_client.update_item(
+            self.blocks_table,
+            item_key,
+            name_value_pairs={
+                'status': 'error',
+                'error_message': error_message
+            }
+        )
+
     def delete_blocks(self):
-        blocks = self.ddb_client.scan(self.blocks_table, correlation_id=self.correlation_id)
+        blocks = self.ddb_client.scan(
+            self.blocks_table,
+            filter_attr_name='status',
+            filter_attr_values=['new'],
+            correlation_id=self.correlation_id
+        )
         deleted_blocks_ids = list()
         affected_calendar_names = list()
         for b in blocks:
+            item_key = b.get('id')
             try:
-                item_key = b['id']
                 delete_response = self.acuity_client.delete_block(item_key)
                 assert delete_response == HTTPStatus.NO_CONTENT, f'Call to Acuity client delete_block method failed with response: {delete_response}. ' \
                     f'{len(deleted_blocks_ids)} blocks were deleted before this error occurred. Deleted blocks ids: {deleted_blocks_ids}'
@@ -112,11 +134,9 @@ class CalendarBlocker:
                     f'Call to Dynamodb client delete_item method failed with response: {response}. ' \
                     f'{len(deleted_blocks_ids)} blocks were deleted before this error occurred. Deleted blocks ids: {deleted_blocks_ids}'
             except Exception as err:
-                self.logger.error(
-                    f'{repr(err)} {len(deleted_blocks_ids)} blocks were created before this error occurred. '
-                    f'Deleted blocks ids: {deleted_blocks_ids}'
-                )
-                raise
+                self.mark_failed_block_deletion(item_key, err)
+                continue
+
         return deleted_blocks_ids, affected_calendar_names
 
 
