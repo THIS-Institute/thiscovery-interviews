@@ -52,17 +52,18 @@ class CalendarBlocker:
         )
         return [(x['id'], x['label']) for x in calendars]
 
-    def block_next_monday_morning(self, calendar_id):
-        next_monday_date = next_weekday(0)
-        morning_start = datetime.datetime.combine(
-            next_monday_date,
+    def block_upcoming_weekend(self, calendar_id):
+        next_saturday_date = next_weekday(5)
+        block_start = datetime.datetime.combine(
+            next_saturday_date,
             datetime.time(hour=0, minute=0)
         )
-        morning_end = datetime.datetime.combine(
+        next_monday_date = next_weekday(0)
+        block_end = datetime.datetime.combine(
             next_monday_date,
             datetime.time(hour=12, minute=0)
         )
-        return self.acuity_client.post_block(calendar_id, morning_start, morning_end)
+        return self.acuity_client.post_block(calendar_id, block_start, block_end)
 
     def create_blocks(self):
         calendars = self.get_target_calendar_ids()
@@ -71,7 +72,7 @@ class CalendarBlocker:
         affected_calendar_names = list()
         for i, name in calendars:
             try:
-                block_dict = self.block_next_monday_morning(i)
+                block_dict = self.block_upcoming_weekend(i)
                 created_blocks_ids.append(block_dict['id'])
                 affected_calendar_names.append(name)
                 response = self.ddb_client.put_item(
