@@ -81,7 +81,7 @@ class CalendarBlocker:
                     item_details=block_dict,
                     item={
                         'status': 'new',
-                        'error_message': '',
+                        'error_message': None,
                     },
                     correlation_id=self.correlation_id
                 )
