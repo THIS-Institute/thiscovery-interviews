@@ -97,7 +97,7 @@ class CalendarBlocker:
         return created_blocks_ids, affected_calendar_names
 
     def mark_failed_block_deletion(self, item_key, exception):
-        error_message = repr(exception)
+        error_message = f'This error happened when trying to delete Acuity calendar block {item_key}: {repr(exception)}'
         self.logger.error(error_message)
         self.ddb_client.update_item(
             self.blocks_table,
