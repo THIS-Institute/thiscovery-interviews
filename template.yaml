@@ -38,7 +38,7 @@ Resources:
       Handler: main.block_calendars
       Runtime: python3.7
       MemorySize: !Ref EnvConfiglambdamemorysizeAsString
-      Timeout: !Ref EnvConfiglambdatimeoutAsString
+      Timeout: 10
       Tracing: Active
       Policies:
         - AWSXrayWriteOnlyAccess
