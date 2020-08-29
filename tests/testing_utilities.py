@@ -19,7 +19,7 @@
 import os
 import unittest
 
-import src.common.utilities as utils
+import thiscovery_lib.utilities as utils
 from local.dev_config import TEST_ON_AWS
 
 

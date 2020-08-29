@@ -19,7 +19,7 @@
 from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import ClientError
 
-import common.utilities as utils
+import thiscovery_lib.utilities as utils
 
 
 STACK_NAME = 'thiscovery-interviews'

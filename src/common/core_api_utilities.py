@@ -18,7 +18,7 @@
 import json
 from http import HTTPStatus
 
-import common.utilities as utils
+import thiscovery_lib.utilities as utils
 
 
 class CoreApiClient:

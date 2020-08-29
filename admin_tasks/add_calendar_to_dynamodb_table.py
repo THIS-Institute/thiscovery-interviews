@@ -3,7 +3,7 @@ import sys
 from http import HTTPStatus
 from pprint import pprint
 
-import src.common.utilities as utils
+import thiscovery_lib.utilities as utils
 from src.common.acuity_utilities import AcuityClient
 from src.common.dynamodb_utilities import Dynamodb
 from src.main import CalendarBlocker

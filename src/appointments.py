@@ -15,11 +15,10 @@
 #   A copy of the GNU Affero General Public License is available in the
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
-import json
 import re
 from http import HTTPStatus
 
-import common.utilities as utils
+import thiscovery_lib.utilities as utils
 from common.acuity_utilities import AcuityClient
 from common.core_api_utilities import CoreApiClient
 from common.dynamodb_utilities import Dynamodb

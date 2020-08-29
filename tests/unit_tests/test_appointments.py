@@ -15,12 +15,14 @@
 #   A copy of the GNU Affero General Public License is available in the
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
+import local.dev_config  # sets environment variables
+import local.secrets  # sets environment variables
 import datetime
 
 from http import HTTPStatus
 from pprint import pprint
 
-import src.common.utilities as utils
+import thiscovery_lib.utilities as utils
 import tests.testing_utilities as test_utils
 from src.appointments import AcuityAppointmentEvent
 from src.common.acuity_utilities import AcuityClient

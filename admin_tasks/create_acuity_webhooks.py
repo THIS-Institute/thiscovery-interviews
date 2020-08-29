@@ -1,4 +1,4 @@
-import common.utilities as utils
+import thiscovery_lib.utilities as utils
 from src.common.acuity_utilities import AcuityClient
 
 

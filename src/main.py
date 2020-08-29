@@ -16,13 +16,11 @@
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
 import datetime
-import requests
 from http import HTTPStatus
-from pprint import pprint
 
-import common.utilities as utils
+import thiscovery_lib.utilities as utils
 from common.acuity_utilities import AcuityClient
-from common.dynamodb_utilities import Dynamodb, STACK_NAME
+from common.dynamodb_utilities import Dynamodb
 from common.sns_utilities import SnsClient
 
 
