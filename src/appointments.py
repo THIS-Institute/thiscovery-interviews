@@ -21,7 +21,7 @@ from http import HTTPStatus
 import thiscovery_lib.utilities as utils
 from common.acuity_utilities import AcuityClient
 from common.core_api_utilities import CoreApiClient
-from common.dynamodb_utilities import Dynamodb
+from thiscovery_lib.dynamodb_utilities import Dynamodb
 
 
 class AcuityAppointmentEvent:

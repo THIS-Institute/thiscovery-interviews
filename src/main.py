@@ -20,7 +20,7 @@ from http import HTTPStatus
 
 import thiscovery_lib.utilities as utils
 from common.acuity_utilities import AcuityClient
-from common.dynamodb_utilities import Dynamodb
+from thiscovery_lib.dynamodb_utilities import Dynamodb
 from common.sns_utilities import SnsClient
 
 
