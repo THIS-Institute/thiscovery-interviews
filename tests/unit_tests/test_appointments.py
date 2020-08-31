@@ -23,7 +23,7 @@ from http import HTTPStatus
 from pprint import pprint
 
 import thiscovery_lib.utilities as utils
-import tests.testing_utilities as test_utils
+import thiscovery_dev_tools.testing_tools as test_utils
 from src.appointments import AcuityAppointmentEvent
 from src.common.acuity_utilities import AcuityClient
 

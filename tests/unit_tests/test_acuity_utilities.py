@@ -22,7 +22,7 @@ import datetime
 from http import HTTPStatus
 
 import thiscovery_lib.utilities as utils
-import tests.testing_utilities as test_utils
+import thiscovery_dev_tools.testing_tools as test_utils
 from src.common.acuity_utilities import AcuityClient
 
 
