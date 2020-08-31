@@ -30,7 +30,7 @@ class CalendarBlocker:
         self.correlation_id = correlation_id
         self.calendars_table = 'Calendars'
         self.blocks_table = 'CalendarBlocks'
-        self.ddb_client = Dynamodb()
+        self.ddb_client = Dynamodb(stack_name='thiscovery-interviews')
         self.acuity_client = AcuityClient()
         self.sns_client = SnsClient()
 

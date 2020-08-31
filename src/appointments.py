@@ -31,7 +31,7 @@ class AcuityAppointmentEvent:
         self.logger = logger
         self.correlation_id = correlation_id
         self.acuity_client = AcuityClient(correlation_id=self.correlation_id)
-        self.ddb_client = Dynamodb()
+        self.ddb_client = Dynamodb(stack_name='thiscovery-interviews')
         self.core_api_client = CoreApiClient(correlation_id=self.correlation_id)
 
         event_pattern = re.compile(
