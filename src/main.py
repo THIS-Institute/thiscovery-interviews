@@ -24,13 +24,16 @@ from thiscovery_lib.dynamodb_utilities import Dynamodb
 from common.sns_utilities import SnsClient
 
 
+STACK_NAME = 'thiscovery-interviews'
+
+
 class CalendarBlocker:
     def __init__(self, logger, correlation_id):
         self.logger = logger
         self.correlation_id = correlation_id
         self.calendars_table = 'Calendars'
         self.blocks_table = 'CalendarBlocks'
-        self.ddb_client = Dynamodb(stack_name='thiscovery-interviews')
+        self.ddb_client = Dynamodb(stack_name=STACK_NAME)
         self.acuity_client = AcuityClient()
         self.sns_client = SnsClient()
 
