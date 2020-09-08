@@ -102,7 +102,7 @@ class AcuityAppointmentEvent:
         email_dict = {
             "source": notification_email_source,
             "to": appointment_manager,
-            "subject": f"[thiscovery-interviews] Appointment {self.action}",
+            "subject": f"[thiscovery-interviews] Appointment {self.appointment_id} {self.action}",
             "body_text": f"The following interview appointment has just been {self.action}:\n"
                          f"Type: {appointment_type_name}\n"
                          f"Date: {appointment_date}\n"
