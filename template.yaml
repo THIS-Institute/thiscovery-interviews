@@ -159,6 +159,8 @@ Resources:
             SecretArn: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/${EnvironmentTagName}/*
         - SNSPublishMessagePolicy:
             TopicName: !GetAtt InterviewNotifications.TopicName
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Appointments
       Events:
         InterviewsApiPOSTv1interviewappointment:
           Type: Api
@@ -173,6 +175,20 @@ Resources:
           SECRETS_NAMESPACE: !Sub /${EnvironmentTagName}/
           TOPIC_NAME: !GetAtt InterviewNotifications.TopicName
           TOPIC_ARN: !Ref InterviewNotifications
+          TABLE_NAME_2: !Ref Appointments
+          TABLE_ARN_2: !GetAtt Appointments.Arn
+  Appointments:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
 Parameters:
   StackTagName:
     Type: String
