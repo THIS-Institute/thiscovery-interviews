@@ -57,6 +57,10 @@ class AcuityClient:
         self.correlation_id = correlation_id
 
     @response_handler
+    def get_appointment_types(self):
+        return self.session.get(f"{self.base_url}appointment-types")
+
+    @response_handler
     def get_webhooks(self):
         return self.session.get(f"{self.base_url}webhooks")
 
@@ -152,4 +156,4 @@ if __name__ == '__main__':
     client = AcuityClient()
     # pprint(client.get_webhooks())
     # client.post_webhooks('appointment.scheduled')
-    pprint(client.get_appointment_by_id(399979594))
+    pprint(client.get_appointment_types())

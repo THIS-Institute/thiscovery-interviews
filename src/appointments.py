@@ -15,7 +15,6 @@
 #   A copy of the GNU Affero General Public License is available in the
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
-import json
 import re
 from http import HTTPStatus
 
@@ -23,6 +22,8 @@ import common.utilities as utils
 from common.acuity_utilities import AcuityClient
 from common.core_api_utilities import CoreApiClient
 from common.dynamodb_utilities import Dynamodb
+from common.emails_api_utilities import EmailsApiClient
+from dateutil import parser
 
 
 class AcuityAppointmentEvent:
@@ -50,41 +51,103 @@ class AcuityAppointmentEvent:
             self.logger.error('event_pattern does not match acuity_event', extra={'acuity_event': acuity_event})
             raise
 
+        self.appointment_details = None
+        self.appointment_type_id_to_name_map = None
+
+    def populate_appointment_type_map(self):
+        if self.appointment_type_id_to_name_map is None:
+            appointment_types = self.acuity_client.get_appointment_types()
+            self.appointment_type_id_to_name_map = {x['id']: x['name'] for x in appointment_types}
+        return self.appointment_type_id_to_name_map
+
     def get_appointment_details(self):
-        r = self.acuity_client.get_appointment_by_id(self.appointment_id)
-        return r['email'], r['appointmentTypeID']
+        self.appointment_details = self.acuity_client.get_appointment_by_id(self.appointment_id)
+        return self.appointment_details['email'], self.appointment_details['appointmentTypeID']
 
     def get_project_task_id_and_status(self):
         item = self.ddb_client.get_item(self.appointment_type_table, self.type_id, correlation_id=self.correlation_id)
         return item['project_task_id'], item['status']
 
-    def main(self):
-        self.logger.info('Parsed Acuity event', extra={'action': self.action, 'appointment_id': self.appointment_id, 'type_id': self.type_id})
+    def notify_thiscovery_team(self):
+        self.populate_appointment_type_map()
+        appointment_type_name = self.appointment_type_id_to_name_map[self.type_id]
+        emails_client = EmailsApiClient(self.correlation_id)
+        secrets_client = utils.SecretsManager()
+        appointment_manager = secrets_client.get_secret_value('interviews')['appointment-manager']
+        appointment_date = f"{parser.parse(self.appointment_details['datetime']).strftime('%d/%m/%Y %H:%M')}-{self.appointment_details['endTime']}"
+        interviewee_name = f"{self.appointment_details['firstName']} {self.appointment_details['lastName']}"
+        interviewee_email = self.appointment_details['email']
+        interviewer_calendar_name = self.appointment_details['calendar']
+        confirmation_page = self.appointment_details['confirmationPage']
+        email_dict = {
+            "to": appointment_manager,
+            "subject": f"[thiscovery-interviews] Appointment {self.action}",
+            "body_text": f"The following interview appointment has just been {self.action}:\n"
+                         f"Type: {appointment_type_name}\n"
+                         f"Date: {appointment_date}\n"
+                         f"Interviewee name:{interviewee_name}\n"
+                         f"Interviewee email: {interviewee_email}\n"
+                         f"Interviewer:{interviewer_calendar_name}\n"
+                         f"Cancel/reschedule: {confirmation_page}\n",
+            "body_html": f"<p>The following interview appointment has just been {self.action}:</p>"
+                         f"<ul>"
+                         f"<li>Type: {appointment_type_name}</li>"
+                         f"<li>Date: {appointment_date}</li>"
+                         f"<li>Interviewee name:{interviewee_name}</li>"
+                         f"<li>Interviewee email: {interviewee_email}</li>"
+                         f"<li>Interviewer:{interviewer_calendar_name}</li>"
+                         f"<li>Cancel/reschedule: {confirmation_page}</li>"
+                         f"</ul>",
+        }
+        return emails_client.send_email(email_dict=email_dict)
+
+    def complete_thiscovery_user_task(self):
+        self.logger.info('Parsed Acuity event', extra={
+            'action': self.action,
+            'appointment_id': self.appointment_id,
+            'type_id': self.type_id
+        })
         email, appointment_type_id = self.get_appointment_details()
         assert str(appointment_type_id) == self.type_id, f'Unexpected appointment type id ({appointment_type_id}) in get_appointment_by_id response. ' \
                                                          f'Expected: {self.type_id}.'
         try:
             user_id = self.core_api_client.get_user_id_by_email(email)
         except Exception as err:
-            self.logger.error(f'Failed to retrieve user_id for {email}', extra={'exception': repr(err)})
+            self.logger.error(f'Failed to retrieve user_id for {email}', extra={
+                'exception': repr(err)
+            })
             raise err
 
         try:
             project_task_id, appointment_type_status = self.get_project_task_id_and_status()
         except Exception as err:
-            self.logger.error(f'Failed to retrieve project_task_id for appointment_type_id {self.type_id}', extra={'exception': repr(err)})
+            self.logger.error(f'Failed to retrieve project_task_id for appointment_type_id {self.type_id}', extra={
+                'exception': repr(err)
+            })
             raise err
 
         if appointment_type_status in ['active']:
             user_task_id = self.core_api_client.get_user_task_id_for_project(user_id, project_task_id)
-            self.logger.debug('user_task_id', extra={'user_task_id': user_task_id})
+            self.logger.debug('user_task_id', extra={
+                'user_task_id': user_task_id
+            })
             result = self.core_api_client.set_user_task_completed(user_task_id)
             self.logger.info(f'Updated user task {user_task_id} status to complete')
             return result
         else:
-            self.logger.info('Ignored appointment', extra={'appointment_id': self.appointment_id, 'appointment_type_id': self.type_id,
-                                                           'appointment_type_status': appointment_type_status})
-            return {"statusCode": HTTPStatus.NO_CONTENT}
+            self.logger.info('Ignored appointment', extra={
+                'appointment_id': self.appointment_id,
+                'appointment_type_id': self.type_id,
+                'appointment_type_status': appointment_type_status
+            })
+            return {
+                "statusCode": HTTPStatus.NO_CONTENT
+            }
+
+    def process_event(self):
+        task_completion_result = self.complete_thiscovery_user_task()
+        email_notification_result = self.notify_thiscovery_team()
+        return task_completion_result
 
 
 @utils.lambda_wrapper
@@ -94,5 +157,4 @@ def interview_appointment_api(event, context):
     correlation_id = event['correlation_id']
     acuity_event = event['body']
     appointment_event = AcuityAppointmentEvent(acuity_event, logger, correlation_id=correlation_id)
-    return appointment_event.main()
-
+    return appointment_event.process_event()
