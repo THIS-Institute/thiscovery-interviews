@@ -73,13 +73,16 @@ class AcuityAppointmentEvent:
         appointment_type_name = self.appointment_type_id_to_name_map[self.type_id]
         emails_client = EmailsApiClient(self.correlation_id)
         secrets_client = utils.SecretsManager()
-        appointment_manager = secrets_client.get_secret_value('interviews')['appointment-manager']
+        appointment_management_secret = secrets_client.get_secret_value('interviews')['appointment-management']
+        appointment_manager = appointment_management_secret['manager']
+        notification_email_source = appointment_management_secret['notification-email-source']
         appointment_date = f"{parser.parse(self.appointment_details['datetime']).strftime('%d/%m/%Y %H:%M')}-{self.appointment_details['endTime']}"
         interviewee_name = f"{self.appointment_details['firstName']} {self.appointment_details['lastName']}"
         interviewee_email = self.appointment_details['email']
         interviewer_calendar_name = self.appointment_details['calendar']
         confirmation_page = self.appointment_details['confirmationPage']
         email_dict = {
+            "source": notification_email_source,
             "to": appointment_manager,
             "subject": f"[thiscovery-interviews] Appointment {self.action}",
             "body_text": f"The following interview appointment has just been {self.action}:\n"
