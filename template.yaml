@@ -189,6 +189,7 @@ Resources:
           KeyType: HASH
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
+      TableName: !Sub ${AWS::StackName}-Appointments
 Parameters:
   StackTagName:
     Type: String
