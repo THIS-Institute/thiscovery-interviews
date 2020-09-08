@@ -37,4 +37,4 @@ class EmailsApiClient:
         body_json = json.dumps(email_dict)
         result = utils.aws_post('v1/send', self.base_url, request_body=body_json)
         assert result['statusCode'] == HTTPStatus.OK, f'Call to email API returned error: {result}'
-        return result['statusCode']
+        return result

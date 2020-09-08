@@ -52,16 +52,35 @@ class AcuityAppointmentEvent:
             raise
 
         self.appointment_details = None
-        self.appointment_type_id_to_name_map = None
+        self.appointment_type_name = None
 
-    def populate_appointment_type_map(self):
-        if self.appointment_type_id_to_name_map is None:
-            appointment_types = self.acuity_client.get_appointment_types()
-            self.appointment_type_id_to_name_map = {x['id']: x['name'] for x in appointment_types}
-        return self.appointment_type_id_to_name_map
+    def store_in_dynamodb(self):
+        self.get_appointment_name()
+        self.get_appointment_details()
+        return self.ddb_client.put_item(
+            table_name='Appointments',
+            key=self.appointment_id,
+            item_type='acuity-appointment',
+            item_details=self.appointment_details,
+            item={
+                'appointment_type_name': self.appointment_type_name,
+            },
+            update_allowed=True
+        )
+
+    def get_appointment_type_id_to_name_map(self):
+        appointment_types = self.acuity_client.get_appointment_types()
+        return {x['id']: x['name'] for x in appointment_types}
+
+    def get_appointment_name(self):
+        if self.appointment_type_name is None:
+            id_to_name = self.get_appointment_type_id_to_name_map()
+            self.appointment_type_name = id_to_name[self.type_id]
+        return self.appointment_type_name
 
     def get_appointment_details(self):
-        self.appointment_details = self.acuity_client.get_appointment_by_id(self.appointment_id)
+        if self.appointment_details is None:
+            self.appointment_details = self.acuity_client.get_appointment_by_id(self.appointment_id)
         return self.appointment_details['email'], self.appointment_details['appointmentTypeID']
 
     def get_project_task_id_and_status(self):
@@ -69,8 +88,7 @@ class AcuityAppointmentEvent:
         return item['project_task_id'], item['status']
 
     def notify_thiscovery_team(self):
-        self.populate_appointment_type_map()
-        appointment_type_name = self.appointment_type_id_to_name_map[self.type_id]
+        appointment_type_name = self.get_appointment_name()
         emails_client = EmailsApiClient(self.correlation_id)
         secrets_client = utils.SecretsManager()
         appointment_management_secret = secrets_client.get_secret_value('interviews')['appointment-management']
@@ -149,8 +167,9 @@ class AcuityAppointmentEvent:
 
     def process_event(self):
         task_completion_result = self.complete_thiscovery_user_task()
+        storing_result = self.store_in_dynamodb()
         email_notification_result = self.notify_thiscovery_team()
-        return task_completion_result
+        return email_notification_result
 
 
 @utils.lambda_wrapper
