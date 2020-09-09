@@ -62,7 +62,7 @@ class TestAcuityAppointmentEvent(test_utils.BaseTestCase):
         self.assertEqual(14792299, appointment_type_id)
 
     def test_get_project_task_id_and_status(self):
-        project_task_id, status = self.aae.get_project_task_id_and_status()
+        project_task_id, status = self.aae.get_appointment_type_info_from_ddb()
         self.assertEqual(self.test_data['project_task_id'], project_task_id)
         self.assertEqual(self.test_data['status'], status)
 

@@ -26,6 +26,9 @@ from common.emails_api_utilities import EmailsApiClient
 from dateutil import parser
 
 
+APPOINTMENTS_TABLE = 'Appointments'
+
+
 class AcuityAppointmentEvent:
     appointment_type_table = 'AppointmentTypes'
 
@@ -53,12 +56,14 @@ class AcuityAppointmentEvent:
 
         self.appointment_details = None
         self.appointment_type_name = None
+        self.appointment_type_status = None
+        self.appointment_type_user_specific_link = None
 
     def store_in_dynamodb(self):
         self.get_appointment_name()
         self.get_appointment_details()
         return self.ddb_client.put_item(
-            table_name='Appointments',
+            table_name=APPOINTMENTS_TABLE,
             key=self.appointment_id,
             item_type='acuity-appointment',
             item_details=self.appointment_details,
@@ -83,9 +88,11 @@ class AcuityAppointmentEvent:
             self.appointment_details = self.acuity_client.get_appointment_by_id(self.appointment_id)
         return self.appointment_details['email'], self.appointment_details['appointmentTypeID']
 
-    def get_project_task_id_and_status(self):
+    def get_appointment_type_info_from_ddb(self):
         item = self.ddb_client.get_item(self.appointment_type_table, self.type_id, correlation_id=self.correlation_id)
-        return item['project_task_id'], item['status']
+        self.appointment_type_status = item['status']
+        self.appointment_type_user_specific_link = item['user_specific_interview_link']
+        return item['project_task_id'], self.appointment_type_status
 
     def notify_thiscovery_team(self):
         appointment_type_name = self.get_appointment_name()
@@ -140,7 +147,7 @@ class AcuityAppointmentEvent:
             raise err
 
         try:
-            project_task_id, appointment_type_status = self.get_project_task_id_and_status()
+            project_task_id, appointment_type_status = self.get_appointment_type_info_from_ddb()
         except Exception as err:
             self.logger.error(f'Failed to retrieve project_task_id for appointment_type_id {self.type_id}', extra={
                 'exception': repr(err)
@@ -168,9 +175,23 @@ class AcuityAppointmentEvent:
     def process_event(self):
         task_completion_result = self.complete_thiscovery_user_task()
         storing_result = self.store_in_dynamodb()
-        if self.action in ['scheduled', 'rescheduled']:
+        if (self.action in ['scheduled', 'rescheduled']) and (self.appointment_type_user_specific_link is True):
             email_notification_result = self.notify_thiscovery_team()
         return task_completion_result
+
+
+def set_interview_url(appointment_id, interview_url, correlation_id=None):
+    ddb_client = Dynamodb()
+    result = ddb_client.update_item(
+        table_name=APPOINTMENTS_TABLE,
+        key=appointment_id,
+        name_value_pairs={
+            'interview_url': interview_url
+        }
+    )
+    assert result['ResponseMetadata']['HTTPStatusCode'] == HTTPStatus.OK, \
+        f'Call to ddb client update_item method failed with response {result}'
+    return result
 
 
 @utils.lambda_wrapper
@@ -181,3 +202,18 @@ def interview_appointment_api(event, context):
     acuity_event = event['body']
     appointment_event = AcuityAppointmentEvent(acuity_event, logger, correlation_id=correlation_id)
     return appointment_event.process_event()
+
+
+@utils.lambda_wrapper
+@utils.api_error_handler
+def set_interview_url_api(event, context):
+    logger = event['logger']
+    correlation_id = event['correlation_id']
+    body = event['body']
+    logger.debug('API call', extra={'body': body, 'correlation_id': correlation_id})
+    set_interview_url(
+        appointment_id=body['appointment_id'],
+        interview_url=body['interview_url'],
+        correlation_id=correlation_id
+    )
+    return {"statusCode": HTTPStatus.OK}
