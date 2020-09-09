@@ -168,8 +168,9 @@ class AcuityAppointmentEvent:
     def process_event(self):
         task_completion_result = self.complete_thiscovery_user_task()
         storing_result = self.store_in_dynamodb()
-        email_notification_result = self.notify_thiscovery_team()
-        return email_notification_result
+        if self.action in ['scheduled', 'rescheduled']:
+            email_notification_result = self.notify_thiscovery_team()
+        return task_completion_result
 
 
 @utils.lambda_wrapper
