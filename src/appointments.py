@@ -58,6 +58,7 @@ class AcuityAppointmentEvent:
         self.appointment_type_name = None
         self.appointment_type_status = None
         self.appointment_type_user_specific_link = None
+        self.participant_user_id = None
 
     def store_in_dynamodb(self):
         self.get_appointment_name()
@@ -69,6 +70,7 @@ class AcuityAppointmentEvent:
             item_details=self.appointment_details,
             item={
                 'appointment_type_name': self.appointment_type_name,
+                'participant_user_id': self.participant_user_id,
             },
             update_allowed=True
         )
@@ -139,7 +141,7 @@ class AcuityAppointmentEvent:
         assert str(appointment_type_id) == self.type_id, f'Unexpected appointment type id ({appointment_type_id}) in get_appointment_by_id response. ' \
                                                          f'Expected: {self.type_id}.'
         try:
-            user_id = self.core_api_client.get_user_id_by_email(email)
+            self.participant_user_id = self.core_api_client.get_user_id_by_email(email)
         except Exception as err:
             self.logger.error(f'Failed to retrieve user_id for {email}', extra={
                 'exception': repr(err)
@@ -155,7 +157,7 @@ class AcuityAppointmentEvent:
             raise err
 
         if appointment_type_status in ['active']:
-            user_task_id = self.core_api_client.get_user_task_id_for_project(user_id, project_task_id)
+            user_task_id = self.core_api_client.get_user_task_id_for_project(self.participant_user_id, project_task_id)
             self.logger.debug('user_task_id', extra={
                 'user_task_id': user_task_id
             })
@@ -180,18 +182,62 @@ class AcuityAppointmentEvent:
         return task_completion_result
 
 
-def set_interview_url(appointment_id, interview_url, correlation_id=None):
-    ddb_client = Dynamodb()
-    result = ddb_client.update_item(
-        table_name=APPOINTMENTS_TABLE,
-        key=appointment_id,
-        name_value_pairs={
-            'interview_url': interview_url
-        }
-    )
-    assert result['ResponseMetadata']['HTTPStatusCode'] == HTTPStatus.OK, \
-        f'Call to ddb client update_item method failed with response {result}'
-    return result
+class InterviewUrlHandler(AcuityAppointmentEvent):
+    participant_email_template_name = "interview_appointment_participant"
+    researcher_email_template_name = "interview_appointment_researcher"
+
+    def __init__(self, appointment_id, correlation_id=None):
+        self.appointment_id = appointment_id
+        self.correlation_id = correlation_id
+        self.ddb_client = Dynamodb()
+        self.core_api_client = CoreApiClient(correlation_id=self.correlation_id)
+        self.participant_user_id = None
+        self.interview_url = None
+
+    def get_appointment_from_ddb(self):
+        return self.ddb_client.get_item(
+            table_name=APPOINTMENTS_TABLE,
+            key=self.appointment_id
+        )
+
+    def get_participant_user_id(self):
+        self.participant_user_id = self.get_appointment_from_ddb()['participant_user_id']
+        return self.participant_user_id
+
+    def set_interview_url(self, interview_url):
+        self.interview_url = interview_url
+        result = self.ddb_client.update_item(
+            table_name=APPOINTMENTS_TABLE,
+            key=self.appointment_id,
+            name_value_pairs={
+                'interview_url': interview_url
+            }
+        )
+        assert result['ResponseMetadata']['HTTPStatusCode'] == HTTPStatus.OK, \
+            f'Call to ddb client update_item method failed with response {result}'
+        return result
+
+    def email_participant(self):
+        result = self.core_api_client.send_transactional_email(
+            template_name=self.participant_email_template_name,
+            to_recipient_id=self.get_participant_user_id(),
+            custom_properties={
+                'interview_url': self.interview_url,
+            }
+        )
+        return result
+
+    def email_researcher(self):
+        self.core_api_client.send_transactional_email(
+            template_name=self.researcher_email_template_name,
+            to_recipient_id=NotImplementedError,
+            custom_properties={
+                'interview_url': self.interview_url,
+            }
+        )
+
+    def main(self, interview_url):
+        raise NotImplementedError
 
 
 @utils.lambda_wrapper
@@ -210,10 +256,12 @@ def set_interview_url_api(event, context):
     logger = event['logger']
     correlation_id = event['correlation_id']
     body = event['body']
-    logger.debug('API call', extra={'body': body, 'correlation_id': correlation_id})
-    set_interview_url(
+    url_handler = InterviewUrlHandler(
         appointment_id=body['appointment_id'],
-        interview_url=body['interview_url'],
         correlation_id=correlation_id
+    )
+    logger.debug('API call', extra={'body': body, 'correlation_id': correlation_id})
+    url_handler.set_interview_url(
+        interview_url=body['interview_url']
     )
     return {"statusCode": HTTPStatus.OK}
