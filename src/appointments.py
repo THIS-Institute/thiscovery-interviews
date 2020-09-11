@@ -60,6 +60,9 @@ class AcuityAppointmentEvent:
         self.appointment_type_user_specific_link = None
         self.participant_user_id = None
 
+    def __repr__(self):
+        return str(self.__dict__)
+
     def store_in_dynamodb(self):
         self.get_appointment_name()
         self.get_appointment_details()
@@ -77,7 +80,7 @@ class AcuityAppointmentEvent:
 
     def get_appointment_type_id_to_name_map(self):
         appointment_types = self.acuity_client.get_appointment_types()
-        return {x['id']: x['name'] for x in appointment_types}
+        return {str(x['id']): x['name'] for x in appointment_types}
 
     def get_appointment_name(self):
         if self.appointment_type_name is None:
@@ -221,6 +224,7 @@ class InterviewUrlHandler(AcuityAppointmentEvent):
         result = self.core_api_client.send_transactional_email(
             template_name=self.participant_email_template_name,
             to_recipient_id=self.get_participant_user_id(),
+            # todo: expand custom_properties as required
             custom_properties={
                 'interview_url': self.interview_url,
             }
@@ -230,7 +234,9 @@ class InterviewUrlHandler(AcuityAppointmentEvent):
     def email_researcher(self):
         self.core_api_client.send_transactional_email(
             template_name=self.researcher_email_template_name,
+            # todo: to_recipient_id is a thiscovery id; the researcher might not have a thiscovery account; expand send_transactional_email to accept email?
             to_recipient_id=NotImplementedError,
+            # todo: expand custom_properties as required
             custom_properties={
                 'interview_url': self.interview_url,
             }

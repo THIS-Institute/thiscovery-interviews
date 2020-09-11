@@ -47,6 +47,7 @@ class TestAcuityAppointmentEvent(test_utils.BaseTestCase):
             item={
                 'project_task_id': cls.test_data['project_task_id'],
                 'status': cls.test_data['status'],
+                'user_specific_interview_link': True,
             },
             update_allowed=True
         )
@@ -66,6 +67,6 @@ class TestAcuityAppointmentEvent(test_utils.BaseTestCase):
         self.assertEqual(self.test_data['project_task_id'], project_task_id)
         self.assertEqual(self.test_data['status'], status)
 
-    def test_main(self):
-        status_code = self.aae.main()['statusCode']
+    def test_process_event(self):
+        status_code = self.aae.process_event()['statusCode']
         self.assertEqual(HTTPStatus.NO_CONTENT, status_code)
