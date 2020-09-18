@@ -22,7 +22,7 @@ from pprint import pprint
 
 import src.common.utilities as utils
 import tests.testing_utilities as test_utils
-from src.appointments import AcuityAppointmentEvent
+from src.appointments import AcuityAppointment
 from src.common.acuity_utilities import AcuityClient
 
 
@@ -38,7 +38,7 @@ class TestAcuityAppointmentEvent(test_utils.BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.aae = AcuityAppointmentEvent(cls.test_data['event_body'], cls.logger)
+        cls.aae = AcuityAppointment(cls.test_data['event_body'], cls.logger)
         cls.aae.ddb_client.put_item(
             table_name=cls.aae.appointment_type_table,
             key=str(cls.test_data['appointment_type_id']),

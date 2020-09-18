@@ -49,10 +49,9 @@ class CoreApiClient:
         assert result['statusCode'] == HTTPStatus.NO_CONTENT, f'Call to core API returned error: {result}'
         return result
 
-    def send_transactional_email(self, template_name, to_recipient_id, **kwargs):
+    def send_transactional_email(self, template_name, **kwargs):
         email_dict = {
             "template_name": template_name,
-            "to_recipient_id": to_recipient_id,
             **kwargs
         }
         result = utils.aws_post('v1/send-transactional-email', self.base_url, request_body=email_dict)
