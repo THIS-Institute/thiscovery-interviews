@@ -452,6 +452,11 @@ def set_interview_url(appointment_id, interview_url, event_type, logger=None, co
 
 
 @utils.lambda_wrapper
+def interview_reminder_handler(event, context):
+    pass
+
+
+@utils.lambda_wrapper
 @utils.api_error_handler
 def interview_appointment_api(event, context):
     logger = event['logger']
