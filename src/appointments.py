@@ -37,8 +37,10 @@ class AcuityAppointment:
         self.correlation_id = correlation_id
         self.acuity_client = AcuityClient(correlation_id=self.correlation_id)
         self.ddb_client = Dynamodb()
-        self.appointment_id = appointment_id
-        self.type_id = type_id
+        self.appointment_id = str(appointment_id)
+        self.type_id = None
+        if type_id:
+            self.type_id = str(type_id)
         self.calendar_id = calendar_id
         self.calendar_name = None
         self.details = None
@@ -96,6 +98,7 @@ class AcuityAppointment:
     def get_appointment_details(self):
         if self.details is None:
             self.details = self.acuity_client.get_appointment_by_id(self.appointment_id)
+            self.details['appointmentTypeID'] = str(self.details['appointmentTypeID'])
             self.calendar_name = self.details['calendar']
         return self.details['email'], self.details['appointmentTypeID']
 
@@ -449,6 +452,16 @@ def set_interview_url(appointment_id, interview_url, event_type, logger=None, co
         notifier.send_researcher_rescheduling_info()
     else:
         raise NotImplementedError(f'Processing of {event_type} events not implemented')
+
+
+def send_reminder():
+    ddb_client = Dynamodb()
+    ddb_client.scan(
+        table_name=APPOINTMENTS_TABLE,
+        filter_attr_name='reminder',
+        filter_attr_values=[None]
+    )
+
 
 
 @utils.lambda_wrapper
