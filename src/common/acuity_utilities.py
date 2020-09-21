@@ -135,11 +135,15 @@ class AcuityClient:
             "notes": notes,
         }
         body_json = json.dumps(body_params)
+        self.logger.debug('Acuity API call', extra={
+            'body_params': body_params,
+            'correlation_id': self.correlation_id,
+        })
         response = self.session.post(f"{self.base_url}blocks", data=body_json)
         if response.ok:
             return response.json()
         else:
-            raise utils.DetailedValueError(f'Acuity post block call failed with response: {response}', details={})
+            raise utils.DetailedValueError(f'Acuity post block call failed with response: {response.status_code}, {response.text}', details={})
 
     def delete_block(self, block_id):
         response = self.session.delete(f"{self.base_url}blocks/{block_id}")
