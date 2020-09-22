@@ -40,6 +40,7 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
         'status': 'active',
         'participant_user_id': '8518c7ed-1df4-45e9-8dc4-d49b57ae0663',
         'event_body': "action=appointment.scheduled&id=399682887&calendarID=4038206&appointmentTypeID=14792299",
+        'cancelled_appointment_id': 446315771,
     }
 
     @classmethod
@@ -141,12 +142,26 @@ class TestAppointmentNotifier(AppointmentsTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-
         cls.an = AppointmentNotifier(
             appointment=cls.aa,
             logger=cls.logger,
             ddb_client=cls.aa.ddb_client,
         )
+        cls.cancelled_aa = None
+        cls.cancelled_an = None
+
+    @classmethod
+    def load_cancelled_appointment(cls):
+        if cls.cancelled_aa is None:
+            cls.cancelled_aa = AcuityAppointment(
+                appointment_id=cls.test_data['cancelled_appointment_id'],
+                logger=cls.logger,
+            )
+        if cls.cancelled_an is None:
+            cls.cancelled_an = AppointmentNotifier(
+                appointment=cls.cancelled_aa,
+                logger=cls.logger,
+            )
 
     def test_10_get_email_template_ok(self):
         templates = [
@@ -175,4 +190,20 @@ class TestAppointmentNotifier(AppointmentsTestCase):
             self.assertEqual(template_name, result)
 
     def test_11_get_researcher_email_address_ok(self):
-        pass
+        result = self.an._get_researcher_email_address()
+        self.assertEqual(2, len(result))
+        self.assertIn("fred@email.co.uk", result)
+
+    def test_12_check_appointment_cancelled_not_cancelled(self):
+        self.assertFalse(self.an._check_appointment_cancelled())
+
+    def test_13_check_appointment_cancelled_appointment_cancelled(self):
+        self.load_cancelled_appointment()
+        self.assertTrue(self.cancelled_an._check_appointment_cancelled())
+
+    def test_14_send_researcher_booking_info_aborted_if_appointment_cancelled(self):
+        self.load_cancelled_appointment()
+        result = self.cancelled_an.send_researcher_booking_info()
+        self.assertEqual('aborted', result)
+
+

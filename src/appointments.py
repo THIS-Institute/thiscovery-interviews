@@ -42,7 +42,9 @@ class AcuityAppointment:
         self.type_id = None
         if type_id:
             self.type_id = str(type_id)
-        self.calendar_id = calendar_id
+        self.calendar_id = None
+        if calendar_id:
+            self.calendar_id = str(calendar_id)
         self.calendar_name = None
         self.details = None
         self.type_name = None
@@ -111,6 +113,7 @@ class AcuityAppointment:
             self.details = self.acuity_client.get_appointment_by_id(self.appointment_id)
             self.details['appointmentTypeID'] = str(self.details['appointmentTypeID'])
             self.calendar_name = self.details['calendar']
+            self.calendar_id = str(self.details['calendarID'])
         return self.details['email'], self.details['appointmentTypeID']
 
     def get_appointment_item_from_ddb(self):
@@ -142,7 +145,7 @@ class AppointmentNotifier:
         except TypeError:
             self.appointment.get_appointment_details()
             self.participant_email = self.appointment.details['email'].lower()
-        self.logger = logger,
+        self.logger = logger
         self.correlation_id = correlation_id
         self.ddb_client = ddb_client
         if self.ddb_client is None:
@@ -182,11 +185,11 @@ class AppointmentNotifier:
         return template_dict[recipient_type][event_type][email_domain]
 
     def _get_researcher_email_address(self):
-        if self.appointment.calendar_name is None:
+        if self.appointment.calendar_id is None:
             self.appointment.get_appointment_details()
         return self.ddb_client.get_item(
             table_name=self.calendar_table,
-            key=self.appointment.calendar_name
+            key=self.appointment.calendar_id
         )['emails_to_notify']
 
     def _check_appointment_cancelled(self):
@@ -199,14 +202,19 @@ class AppointmentNotifier:
         self.appointment.get_appointment_details()
         return self.appointment.details['canceled'] is True
 
-    def _notify_participant(self, event_type, extra_custom_properties=dict()):
+    def _abort_notification_check(self, event_type):
         if not event_type == 'cancellation':
             if self._check_appointment_cancelled():
                 self.logger.info('Notification aborted; appointment has been cancelled', extra={
                     'appointment': self.appointment,
                     'correlation_id': self.correlation_id
                 })
-                return None
+                return True
+        return False
+
+    def _notify_participant(self, event_type, extra_custom_properties=dict()):
+        if self._abort_notification_check(event_type=event_type) is True:
+            return 'aborted'
 
         result = self.appointment.core_api_client.send_transactional_email(
             template_name=self._get_email_template(
@@ -227,13 +235,8 @@ class AppointmentNotifier:
         return result
 
     def _notify_researcher(self, event_type, extra_custom_properties=dict()):
-        if not event_type == 'cancellation':
-            if self._check_appointment_cancelled():
-                self.logger.info('Notification aborted; appointment has been cancelled', extra={
-                    'appointment': self.appointment,
-                    'correlation_id': self.correlation_id
-                })
-                return None
+        if self._abort_notification_check(event_type=event_type) is True:
+            return 'aborted'
 
         for researcher_email in self._get_researcher_email_address():
             result = self.appointment.core_api_client.send_transactional_email(
@@ -260,13 +263,13 @@ class AppointmentNotifier:
         return self._notify_participant('cancellation')
 
     def send_researcher_booking_info(self):
-        self._notify_researcher('booking')
+        return self._notify_researcher('booking')
 
     def send_researcher_rescheduling_info(self):
-        self._notify_researcher('rescheduling')
+        return self._notify_researcher('rescheduling')
 
     def send_researcher_cancellation_info(self):
-        self._notify_researcher('cancellation')
+        return self._notify_researcher('cancellation')
 
 
 class AcuityEvent:
@@ -483,10 +486,12 @@ def send_reminder():
     )
 
 
-
 @utils.lambda_wrapper
 def interview_reminder_handler(event, context):
-    pass
+    """
+    To be implemented
+    """
+    raise NotImplementedError
 
 
 @utils.lambda_wrapper
