@@ -37,6 +37,7 @@ class AcuityAppointment:
         self.correlation_id = correlation_id
         self.acuity_client = AcuityClient(correlation_id=self.correlation_id)
         self.ddb_client = Dynamodb()
+        self.core_api_client = CoreApiClient(correlation_id=self.correlation_id)
         self.appointment_id = str(appointment_id)
         self.type_id = None
         if type_id:
@@ -53,9 +54,19 @@ class AcuityAppointment:
     def __repr__(self):
         return str(self.__dict__)
 
+    def get_participant_user_id(self):
+        if self.details is None:
+            self.get_appointment_details()
+        if self.participant_user_id is None:
+            self.participant_user_id = self.core_api_client.get_user_id_by_email(
+                email=self.details['email']
+            )
+        return self.participant_user_id
+
     def store_in_dynamodb(self, update_allowed=False):
         self.get_appointment_name()
         self.get_appointment_details()
+        self.get_participant_user_id()
         return self.ddb_client.put_item(
             table_name=APPOINTMENTS_TABLE,
             key=self.appointment_id,
@@ -126,16 +137,20 @@ class AppointmentNotifier:
             correlation_id:
         """
         self.appointment = appointment
-        self.participant_email = self.appointment.details['email'].lower()
+        try:
+            self.participant_email = self.appointment.details['email'].lower()
+        except TypeError:
+            self.appointment.get_appointment_details()
+            self.participant_email = self.appointment.details['email'].lower()
         self.logger = logger,
         self.correlation_id = correlation_id
         self.ddb_client = ddb_client
         if self.ddb_client is None:
             self.ddb_client = Dynamodb()
 
-    def _get_email_template(self, recipient_type, event_type, recipient_email=None):
+    def _get_email_template(self, recipient_type, event_type):
         email_domain = 'other'
-        if (event_type == 'participant') and ('@nhs' in self.participant_email):
+        if (recipient_type == 'participant') and ('@nhs' in self.participant_email):
             email_domain = 'nhs'
         template_dict = {
             'participant': {
@@ -282,12 +297,13 @@ class AcuityEvent:
             calendar_id=self.calendar_id,
         )
         self.appointment.get_appointment_type_info_from_ddb()
-        self.core_api_client = CoreApiClient(correlation_id=self.correlation_id)
 
     def __repr__(self):
         return str(self.__dict__)
 
     def notify_thiscovery_team(self):
+        if self.appointment.details is None:
+            self.appointment.get_appointment_details()
         appointment_type_name = self.appointment.get_appointment_name()
         emails_client = EmailsApiClient(self.correlation_id)
         appointment_management_secret = utils.get_secret('interviews')['appointment-management']
@@ -308,23 +324,28 @@ class AcuityEvent:
             "body_text": f"The following interview appointment has just been {self.action}:\n"
                          f"Type: {appointment_type_name}\n"
                          f"Date: {appointment_date}\n"
-                         f"Interviewee name:{interviewee_name}\n"
+                         f"Interviewee name: {interviewee_name}\n"
                          f"Interviewee email: {interviewee_email}\n"
-                         f"Interviewer:{interviewer_calendar_name}\n"
+                         f"Interviewer: {interviewer_calendar_name}\n"
                          f"Cancel/reschedule: {confirmation_page}\n",
             "body_html": f"<p>The following interview appointment has just been {self.action}:</p>"
                          f"<ul>"
                          f"<li>Type: {appointment_type_name}</li>"
                          f"<li>Date: {appointment_date}</li>"
-                         f"<li>Interviewee name:{interviewee_name}</li>"
+                         f"<li>Interviewee name: {interviewee_name}</li>"
                          f"<li>Interviewee email: {interviewee_email}</li>"
-                         f"<li>Interviewer:{interviewer_calendar_name}</li>"
+                         f"<li>Interviewer: {interviewer_calendar_name}</li>"
                          f"<li>Cancel/reschedule: {confirmation_page}</li>"
                          f"</ul>",
         }
         return emails_client.send_email(email_dict=email_dict)
 
     def complete_thiscovery_user_task(self):
+        """
+        This is a legacy method that should be no longer used. Leaving the code here for now but raising an error if it is called.
+        """
+        raise utils.DetailedValueError('complete_thiscovery_user_task should no longer be used', details={})
+
         self.logger.info('Parsed Acuity event', extra={
             'action': self.action,
             'appointment_id': self.appointment_id,
@@ -368,7 +389,6 @@ class AcuityEvent:
             }
 
     def _process_booking(self):
-        task_completion_result = self.complete_thiscovery_user_task()
         storing_result = self.appointment.store_in_dynamodb()
         if self.appointment.has_link:
             email_notification_result = self.notify_thiscovery_team()
