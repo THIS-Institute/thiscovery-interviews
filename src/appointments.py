@@ -57,6 +57,16 @@ class AcuityAppointment:
     def __repr__(self):
         return str(self.__dict__)
 
+    def load_ddb_data(self):
+        item = self.get_appointment_item_from_ddb()
+        self.type_id = item['type_id']
+        self.type_name = item['type_name']
+        self.participant_user_id = item['participant_user_id']
+        self.calendar_id = item['calendar_id']
+        self.calendar_name = item['calendar_name']
+        self.link = item['link']
+        self.details = item['details']
+
     def get_participant_user_id(self):
         if self.details is None:
             self.get_appointment_details()
@@ -458,8 +468,10 @@ def set_interview_url(appointment_id, interview_url, event_type, logger=None, co
         logger = utils.get_logger()
     appointment = AcuityAppointment(
         appointment_id=appointment_id,
+        logger=logger,
         correlation_id=correlation_id,
     )
+    appointment.load_ddb_data()
     appointment.update_link(
         link=interview_url
     )

@@ -16,15 +16,15 @@
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
 import datetime
+import json
 
 from http import HTTPStatus
 from pprint import pprint
 
+import src.appointments as app
 import src.common.utilities as utils
 import tests.testing_utilities as test_utils
-from src.appointments import AcuityAppointment, AcuityEvent, AppointmentNotifier, APPOINTMENTS_TABLE
-from src.common.dynamodb_utilities import Dynamodb
-from src.common.acuity_utilities import AcuityClient
+from local.secrets import TESTER_THISCOVERY_USER_ID_MAP
 
 
 class AppointmentsTestCase(test_utils.BaseTestCase):
@@ -41,12 +41,13 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
         'participant_user_id': '8518c7ed-1df4-45e9-8dc4-d49b57ae0663',
         'event_body': "action=appointment.scheduled&id=399682887&calendarID=4038206&appointmentTypeID=14792299",
         'cancelled_appointment_id': 446315771,
+        'interview_url': "https://meet.myinterview.com/1b879c51-2e29-46ae-bd36-3199860e65f2"
     }
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.aa = AcuityAppointment(
+        cls.aa = app.AcuityAppointment(
             appointment_id=cls.test_data['appointment_id'],
             logger=cls.logger,
             type_id=cls.test_data['appointment_type_id'],
@@ -68,8 +69,36 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
     @classmethod
     def clear_appointments_table(cls):
         cls.aa.ddb_client.delete_all(
-            table_name=APPOINTMENTS_TABLE,
+            table_name=app.APPOINTMENTS_TABLE,
         )
+
+
+class SetInterviewUrlTestCase(AppointmentsTestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.aa.store_in_dynamodb()
+        cls.aa.ddb_client.update_item(
+            table_name=app.APPOINTMENTS_TABLE,
+            key=cls.aa.appointment_id,
+            name_value_pairs={
+                'participant_user_id': TESTER_THISCOVERY_USER_ID_MAP[utils.get_environment_name()]  # so that participant notification go to tester
+            }
+        )
+
+    def test_00_set_interview_url_api_ok(self):
+        body = {
+            "appointment_id": self.test_data['appointment_id'],
+            "interview_url": self.test_data['interview_url'],
+            "event_type": "booking",
+        }
+        result = test_utils.test_put(
+            local_method=app.set_interview_url_api,
+            aws_url='v1/set-interview-url',
+            request_body=json.dumps(body),
+        )
+        self.assertEqual(HTTPStatus.OK, result['statusCode'])
 
 
 class TestAcuityAppointment(AppointmentsTestCase):
@@ -121,7 +150,7 @@ class TestAcuityEvent(AppointmentsTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.ae = AcuityEvent(
+        cls.ae = app.AcuityEvent(
             acuity_event=cls.test_data['event_body'],
             logger=cls.logger,
         )
@@ -146,7 +175,7 @@ class TestAppointmentNotifier(AppointmentsTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.an = AppointmentNotifier(
+        cls.an = app.AppointmentNotifier(
             appointment=cls.aa,
             logger=cls.logger,
             ddb_client=cls.aa.ddb_client,
@@ -157,12 +186,12 @@ class TestAppointmentNotifier(AppointmentsTestCase):
     @classmethod
     def load_cancelled_appointment(cls):
         if cls.cancelled_aa is None:
-            cls.cancelled_aa = AcuityAppointment(
+            cls.cancelled_aa = app.AcuityAppointment(
                 appointment_id=cls.test_data['cancelled_appointment_id'],
                 logger=cls.logger,
             )
         if cls.cancelled_an is None:
-            cls.cancelled_an = AppointmentNotifier(
+            cls.cancelled_an = app.AppointmentNotifier(
                 appointment=cls.cancelled_aa,
                 logger=cls.logger,
             )

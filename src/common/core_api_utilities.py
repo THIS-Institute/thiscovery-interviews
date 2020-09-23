@@ -25,6 +25,7 @@ class CoreApiClient:
 
     def __init__(self, correlation_id=None):
         self.correlation_id = correlation_id
+        self.logger = utils.get_logger()
         env_name = utils.get_environment_name()
         if env_name == 'prod':
             self.base_url = 'https://api.thiscovery.org/'
@@ -54,6 +55,7 @@ class CoreApiClient:
             "template_name": template_name,
             **kwargs
         }
-        result = utils.aws_post('v1/send-transactional-email', self.base_url, request_body=email_dict)
+        self.logger.debug("Transactional email API call", extra={'email_dict': email_dict})
+        result = utils.aws_post('v1/send-transactional-email', self.base_url, request_body=json.dumps(email_dict))
         assert result['statusCode'] == HTTPStatus.NO_CONTENT, f'Call to core API returned error: {result}'
         return result
