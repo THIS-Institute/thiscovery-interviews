@@ -123,6 +123,13 @@ Resources:
                 type: aws_proxy
                 uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InterviewAppointment.Arn}/invocations
               responses: {}
+          /v1/set-interview-url:
+            put:
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SetInterviewUrl.Arn}/invocations
+              responses: {}
       EndpointConfiguration: REGIONAL
       TracingEnabled: true
   AppointmentTypes:
@@ -221,6 +228,37 @@ Resources:
             Schedule: rate(120 minutes)
           Metadata:
             StackeryName: ReminderTimer
+  SetInterviewUrl:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-SetInterviewUrl
+      Description: !Sub
+        - Stack ${StackTagName} Environment ${EnvironmentTagName} Function ${ResourceName}
+        - ResourceName: SetInterviewUrl
+      CodeUri: src
+      Handler: appointments.set_interview_url_api
+      Runtime: python3.7
+      MemorySize: !Ref EnvConfiglambdamemorysizeAsString
+      Timeout: !Ref EnvConfiglambdatimeoutAsString
+      Tracing: Active
+      Policies:
+        - AWSXrayWriteOnlyAccess
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Appointments
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/${EnvironmentTagName}/*
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Appointments
+          TABLE_ARN: !GetAtt Appointments.Arn
+          SECRETS_NAMESPACE: !Sub /${EnvironmentTagName}/
+      Events:
+        InterviewsApiPUTv1setinterviewurl:
+          Type: Api
+          Properties:
+            Path: /v1/set-interview-url
+            Method: PUT
+            RestApiId: !Ref InterviewsApi
 Parameters:
   StackTagName:
     Type: String
