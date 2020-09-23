@@ -395,7 +395,7 @@ class AcuityEvent:
         storing_result = self.appointment.store_in_dynamodb()
         if self.appointment.has_link:
             email_notification_result = self.notify_thiscovery_team()
-            assert email_notification_result == HTTPStatus.OK, 'Failed to email Thiscovery team'
+            assert email_notification_result['statusCode'] == HTTPStatus.OK, 'Failed to email Thiscovery team'
         return storing_result
 
     def _process_cancellation(self):

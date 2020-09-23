@@ -137,6 +137,10 @@ class TestAcuityEvent(AppointmentsTestCase):
         result = self.ae.notify_thiscovery_team()
         self.assertEqual(HTTPStatus.OK, result['statusCode'])
 
+    def test_10_process_ok(self):
+        result = self.ae.process()
+        pprint(result)
+
 
 class TestAppointmentNotifier(AppointmentsTestCase):
     @classmethod
