@@ -15,6 +15,7 @@
 #   A copy of the GNU Affero General Public License is available in the
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
+import json
 import re
 from http import HTTPStatus
 
@@ -509,7 +510,7 @@ def interview_appointment_api(event, context):
 def set_interview_url_api(event, context):
     logger = event['logger']
     correlation_id = event['correlation_id']
-    body = event['body']
+    body = json.loads(event['body'])
     logger.debug('API call', extra={
         'body': body,
         'correlation_id': correlation_id
