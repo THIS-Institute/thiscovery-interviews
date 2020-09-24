@@ -33,7 +33,8 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
     """
     test_data = {
         'appointment_id': 399682887,
-        'appointment_type_id': 14792299,
+        'appointment_type_id': 14792299,  # test appointment
+        'dev_appointment_type_id': 14649911,  # development appointment
         'calendar_name': 'André',
         'email': 'clive@email.co.uk',
         'project_task_id': '07af2fbe-5cd1-447f-bae1-3a2f8de82829',
@@ -52,7 +53,7 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
             logger=cls.logger,
             type_id=cls.test_data['appointment_type_id'],
         )
-        cls.aa.ddb_client.put_item(
+        cls.aa._ddb_client.put_item(
             table_name=cls.aa.appointment_type_table,
             key=str(cls.test_data['appointment_type_id']),
             item_type='acuity_appointment_type',
@@ -61,6 +62,20 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
                 'project_task_id': cls.test_data['project_task_id'],
                 'status': cls.test_data['status'],
                 'user_specific_interview_link': True,
+                'send_notifications': True,
+            },
+            update_allowed=True,
+        )
+        cls.aa._ddb_client.put_item(
+            table_name=cls.aa.appointment_type_table,
+            key=str(cls.test_data['dev_appointment_type_id']),
+            item_type='acuity_appointment_type',
+            item_details=None,
+            item={
+                'project_task_id': cls.test_data['project_task_id'],
+                'status': cls.test_data['status'],
+                'user_specific_interview_link': False,
+                'send_notifications': False,
             },
             update_allowed=True,
         )
@@ -68,7 +83,7 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
 
     @classmethod
     def clear_appointments_table(cls):
-        cls.aa.ddb_client.delete_all(
+        cls.aa._ddb_client.delete_all(
             table_name=app.APPOINTMENTS_TABLE,
         )
 
@@ -78,8 +93,8 @@ class SetInterviewUrlTestCase(AppointmentsTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.aa.store_in_dynamodb()
-        cls.aa.ddb_client.update_item(
+        cls.aa.ddb_dump()
+        cls.aa._ddb_client.update_item(
             table_name=app.APPOINTMENTS_TABLE,
             key=cls.aa.appointment_id,
             name_value_pairs={
@@ -113,24 +128,24 @@ class TestAcuityAppointment(AppointmentsTestCase):
         self.assertEqual('Test appointment', result)
 
     def test_03_get_appointment_details_ok(self):
-        email, type_id = self.aa.get_appointment_details()
+        email, type_id = self.aa.get_appointment_info_from_acuity()
         self.assertEqual(self.test_data['email'], email)
         self.assertEqual(self.aa.type_id, type_id)
         self.assertEqual(self.test_data['calendar_name'], self.aa.calendar_name)
 
     def test_04_store_in_dynamodb_ok(self):
-        result = self.aa.store_in_dynamodb()
+        result = self.aa.ddb_dump()
         self.assertEqual(HTTPStatus.OK, result['ResponseMetadata']['HTTPStatusCode'])
         self.clear_appointments_table()
 
     def test_05_update_link_ok(self):
-        self.aa.store_in_dynamodb()
+        self.aa.ddb_dump()
         result = self.aa.update_link('www.thiscovery.org')
         self.assertEqual(HTTPStatus.OK, result['ResponseMetadata']['HTTPStatusCode'])
         self.clear_appointments_table()
 
     def test_06_get_appointment_item_from_ddb_ok(self):
-        self.aa.store_in_dynamodb()
+        self.aa.ddb_dump()
         result = self.aa.get_appointment_item_from_ddb()
         self.assertEqual('acuity-appointment', result['type'])
         self.clear_appointments_table()
@@ -156,7 +171,7 @@ class TestAcuityEvent(AppointmentsTestCase):
         )
 
     def test_08_init_ok(self):
-        self.assertEqual('scheduled', self.ae.action)
+        self.assertEqual('scheduled', self.ae.event_type)
         self.assertEqual('399682887', self.ae.appointment_id)
         self.assertEqual('4038206', self.ae.calendar_id)
         self.assertEqual('14792299', self.ae.type_id)
@@ -178,7 +193,7 @@ class TestAppointmentNotifier(AppointmentsTestCase):
         cls.an = app.AppointmentNotifier(
             appointment=cls.aa,
             logger=cls.logger,
-            ddb_client=cls.aa.ddb_client,
+            ddb_client=cls.aa._ddb_client,
         )
         cls.cancelled_aa = None
         cls.cancelled_an = None
