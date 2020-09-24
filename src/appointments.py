@@ -407,35 +407,41 @@ class AcuityEvent:
         if self.appointment.has_link:
             email_notification_result = self.notify_thiscovery_team()
             assert email_notification_result['statusCode'] == HTTPStatus.OK, 'Failed to email Thiscovery team'
-        return storing_result
-
-    def _process_cancellation(self):
-        storing_result = self.appointment.store_in_dynamodb(update_allowed=True)
-        if self.appointment.has_link:
+        else:
             notifier = AppointmentNotifier(
                 appointment=self.appointment,
                 logger=self.logger,
                 correlation_id=self.correlation_id,
             )
-            notifier.send_participant_cancellation_info()
-            notifier.send_researcher_cancellation_info()
+            notifier.send_participant_booking_info()
+            notifier.send_researcher_booking_info()
+        return storing_result
+
+    def _process_cancellation(self):
+        storing_result = self.appointment.store_in_dynamodb(update_allowed=True)
+        notifier = AppointmentNotifier(
+            appointment=self.appointment,
+            logger=self.logger,
+            correlation_id=self.correlation_id,
+        )
+        notifier.send_participant_cancellation_info()
+        notifier.send_researcher_cancellation_info()
         return storing_result
 
     def _process_resheduling(self):
         original_booking_info = self.appointment.get_appointment_item_from_ddb()
         storing_result = self.appointment.store_in_dynamodb(update_allowed=True)
-        if self.appointment.has_link:
-            if original_booking_info['calendar_id'] == self.calendar_id:
-                notifier = AppointmentNotifier(
-                    appointment=self.appointment,
-                    logger=self.logger,
-                    correlation_id=self.correlation_id,
-                )
-                notifier.send_participant_rescheduling_info()
-                notifier.send_researcher_rescheduling_info()
-            else:
-                email_notification_result = self.notify_thiscovery_team()
-                assert email_notification_result == HTTPStatus.OK, 'Failed to email Thiscovery team'
+        if original_booking_info['calendar_id'] == self.calendar_id:
+            notifier = AppointmentNotifier(
+                appointment=self.appointment,
+                logger=self.logger,
+                correlation_id=self.correlation_id,
+            )
+            notifier.send_participant_rescheduling_info()
+            notifier.send_researcher_rescheduling_info()
+        else:
+            email_notification_result = self.notify_thiscovery_team()
+            assert email_notification_result == HTTPStatus.OK, 'Failed to email Thiscovery team'
         return storing_result
 
     def process(self):
