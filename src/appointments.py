@@ -116,6 +116,7 @@ class AppointmentType:
         self.has_link = None
         self.send_notifications = None
         self.templates = DEFAULT_TEMPLATES
+        self.modified = None  # flag used in ddb_load method to check if ddb data was already fetched
 
         self._logger = logger
         if logger is None:
@@ -129,7 +130,7 @@ class AppointmentType:
         self._correlation_id = correlation_id
 
     def as_dict(self):
-        return {k: v for k, v in self.__dict__.items() if (k[0] != "_")}
+        return {k: v for k, v in self.__dict__.items() if (k[0] != "_") and (k not in ['created', 'modified'])}
 
     def from_dict(self, type_dict):
         self.__dict__.update(type_dict)
@@ -145,8 +146,9 @@ class AppointmentType:
         )
 
     def ddb_load(self):
-        item = self._ddb_client.get_item(self._appointment_type_table, self.type_id, correlation_id=self._correlation_id)
-        self.__dict__.update(item)
+        if self.modified is None:
+            item = self._ddb_client.get_item(self._appointment_type_table, self.type_id, correlation_id=self._correlation_id)
+            self.__dict__.update(item)
 
     def get_appointment_type_id_to_name_map(self):
         appointment_types = self._acuity_client.get_appointment_types()
@@ -188,7 +190,7 @@ class AcuityAppointment:
         return str(self.__dict__)
 
     def as_dict(self):
-        d = {k: v for k, v in self.__dict__.items() if (k[0] != "_") and (k not in ['appointment_type'])}
+        d = {k: v for k, v in self.__dict__.items() if (k[0] != "_") and (k not in ['created', 'modified', 'appointment_type'])}
         d['appointment_type'] = self.appointment_type.as_dict()
         return d
 
@@ -206,14 +208,17 @@ class AcuityAppointment:
         )
 
     def ddb_load(self):
-        item = self._ddb_client.get_item(
-            table_name=APPOINTMENTS_TABLE,
-            key=self.appointment_id
-        )
+        item = self.get_appointment_item_from_ddb()
         item_app_type = item['appointment_type']
         del item['appointment_type']
         self.__dict__.update(item)
         self.appointment_type.from_dict(item_app_type)
+
+    def get_appointment_item_from_ddb(self):
+        return self._ddb_client.get_item(
+            table_name=APPOINTMENTS_TABLE,
+            key=self.appointment_id
+        )
 
     def get_participant_user_id(self):
         """
@@ -381,7 +386,7 @@ class AcuityEvent:
         try:
             self.event_type = m.group('action')
             appointment_id = m.group('appointment_id')
-            # self.type_id = m.group('type_id')
+            type_id = m.group('type_id')
             # self.calendar_id = m.group('calendar_id')
         except AttributeError as err:
             self.logger.error('event_pattern does not match acuity_event', extra={'acuity_event': acuity_event})
@@ -391,7 +396,8 @@ class AcuityEvent:
             logger=self.logger,
             correlation_id=self.correlation_id,
         )
-        self.appointment.get_appointment_type_info_from_ddb()
+        self.appointment.appointment_type.type_id = type_id
+        self.appointment.appointment_type.ddb_load()
 
     def __repr__(self):
         return str(self.__dict__)
@@ -433,7 +439,9 @@ class AcuityEvent:
                          f"<li>Cancel/reschedule: {confirmation_page}</li>"
                          f"</ul>",
         }
-        return emails_client.send_email(email_dict=email_dict)
+        result = emails_client.send_email(email_dict=email_dict)
+        assert result == HTTPStatus.OK, 'Failed to email Thiscovery team'
+        return result
 
     def complete_thiscovery_user_task(self):
         """
@@ -483,46 +491,35 @@ class AcuityEvent:
                 "statusCode": HTTPStatus.NO_CONTENT
             }
 
-    def _process_booking(self):
-        storing_result = self.appointment.ddb_dump()
-        if self.appointment.has_link:
-            email_notification_result = self.notify_thiscovery_team()
-            assert email_notification_result['statusCode'] == HTTPStatus.OK, 'Failed to email Thiscovery team'
-        else:
+    def _notify_participant_and_researchers(self, event_type):
+        if self.appointment.appointment_type.send_notifications is True:
             notifier = AppointmentNotifier(
                 appointment=self.appointment,
                 logger=self.logger,
                 correlation_id=self.correlation_id,
             )
-            notifier.send_participant_booking_info()
-            notifier.send_researcher_booking_info()
+            return notifier.send_notifications(event_type=event_type)
+
+    def _process_booking(self):
+        storing_result = self.appointment.ddb_dump()
+        if self.appointment.appointment_type.has_link:
+            self.notify_thiscovery_team()
+        else:
+            self._notify_participant_and_researchers(event_type='booking')
         return storing_result
 
     def _process_cancellation(self):
         storing_result = self.appointment.ddb_dump(update_allowed=True)
-        notifier = AppointmentNotifier(
-            appointment=self.appointment,
-            logger=self.logger,
-            correlation_id=self.correlation_id,
-        )
-        notifier.send_participant_cancellation_info()
-        notifier.send_researcher_cancellation_info()
+        self._notify_participant_and_researchers(event_type='cancellation')
         return storing_result
 
-    def _process_resheduling(self):
+    def _process_rescheduling(self):
         original_booking_info = self.appointment.get_appointment_item_from_ddb()
         storing_result = self.appointment.ddb_dump(update_allowed=True)
-        if original_booking_info['calendar_id'] == self.calendar_id:
-            notifier = AppointmentNotifier(
-                appointment=self.appointment,
-                logger=self.logger,
-                correlation_id=self.correlation_id,
-            )
-            notifier.send_participant_rescheduling_info()
-            notifier.send_researcher_rescheduling_info()
+        if original_booking_info['calendar_id'] == self.appointment.calendar_id:
+            self._notify_participant_and_researchers(event_type='rescheduling')
         else:
-            email_notification_result = self.notify_thiscovery_team()
-            assert email_notification_result == HTTPStatus.OK, 'Failed to email Thiscovery team'
+            self.notify_thiscovery_team()
         return storing_result
 
     def process(self):
@@ -531,7 +528,7 @@ class AcuityEvent:
         elif self.event_type == 'canceled':
             result = self._process_cancellation()
         elif self.event_type == 'rescheduled':
-            result = self._process_resheduling()
+            result = self._process_rescheduling()
         else:
             raise NotImplementedError(f'Processing of a {self.event_type} appointment has not been implemented')
 
