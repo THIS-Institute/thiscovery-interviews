@@ -15,16 +15,18 @@
 #   A copy of the GNU Affero General Public License is available in the
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
+import copy
 import datetime
 import json
+import unittest
 
 from http import HTTPStatus
 from pprint import pprint
 
 import src.appointments as app
-import src.common.utilities as utils
+import common.utilities as utils
 import tests.testing_utilities as test_utils
-from local.secrets import TESTER_THISCOVERY_USER_ID_MAP
+from local.secrets import TESTER_EMAIL_MAP
 
 
 class AppointmentsTestCase(test_utils.BaseTestCase):
@@ -32,13 +34,17 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
     Base class with data and methods for testing appointments.py
     """
     test_data = {
-        'appointment_id': 399682887,
-        'appointment_type_id': 14792299,  # test appointment
-        'dev_appointment_type_id': 14649911,  # development appointment
+        'test_appointment_id': 399682887,
+        'dev_appointment_id': 448161724,
+        'test_appointment_no_notif_id': 448161419,
+
+        'test_appointment_type_id': 14792299,
+        'dev_appointment_type_id': 14649911,
+        'test_appointment_no_notif_type_id': 17268193,
+        'dev_appointment_no_link_type_id': 17271544,
+
         'calendar_name': 'André',
         'email': 'clive@email.co.uk',
-        'project_task_id': '07af2fbe-5cd1-447f-bae1-3a2f8de82829',
-        'status': 'active',
         'participant_user_id': '8518c7ed-1df4-45e9-8dc4-d49b57ae0663',
         'event_body': "action=appointment.scheduled&id=399682887&calendarID=4038206&appointmentTypeID=14792299",
         'cancelled_appointment_id': 446315771,
@@ -48,42 +54,44 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.aa = app.AcuityAppointment(
-            appointment_id=cls.test_data['appointment_id'],
+        cls.aa1 = app.AcuityAppointment(
+            appointment_id=cls.test_data['test_appointment_id'],
             logger=cls.logger,
-            type_id=cls.test_data['appointment_type_id'],
         )
-        cls.aa._ddb_client.put_item(
-            table_name=cls.aa.appointment_type_table,
-            key=str(cls.test_data['appointment_type_id']),
-            item_type='acuity_appointment_type',
-            item_details=None,
-            item={
-                'project_task_id': cls.test_data['project_task_id'],
-                'status': cls.test_data['status'],
-                'user_specific_interview_link': True,
-                'send_notifications': True,
-            },
-            update_allowed=True,
+
+        # test appointments default to have links and require notifications
+        cls.at1 = app.AppointmentType(
+            ddb_client=cls.aa1._ddb_client,
+            acuity_client=cls.aa1._acuity_client,
+            logger=cls.logger,
         )
-        cls.aa._ddb_client.put_item(
-            table_name=cls.aa.appointment_type_table,
-            key=str(cls.test_data['dev_appointment_type_id']),
-            item_type='acuity_appointment_type',
-            item_details=None,
-            item={
-                'project_task_id': cls.test_data['project_task_id'],
-                'status': cls.test_data['status'],
-                'user_specific_interview_link': False,
-                'send_notifications': False,
-            },
-            update_allowed=True,
+        cls.at1.from_dict({
+            'type_id': cls.test_data['test_appointment_type_id'],
+            'has_link': True,
+            'send_notifications': True,
+        })
+        cls.at1.get_appointment_type_info_from_acuity()
+        cls.at1.ddb_dump(update_allowed=True)
+
+        # dev appointments default to not have links and not require notifications
+        cls.at2 = app.AppointmentType(
+            ddb_client=cls.aa1._ddb_client,
+            acuity_client=cls.aa1._acuity_client,
+            logger=cls.logger,
         )
+        cls.at2.from_dict({
+            'type_id': cls.test_data['dev_appointment_type_id'],
+            'has_link': False,
+            'send_notifications': False,
+        })
+        cls.at2.get_appointment_type_info_from_acuity()
+        cls.at2.ddb_dump(update_allowed=True)
+
         cls.clear_appointments_table()
 
     @classmethod
     def clear_appointments_table(cls):
-        cls.aa._ddb_client.delete_all(
+        cls.aa1._ddb_client.delete_all(
             table_name=app.APPOINTMENTS_TABLE,
         )
 
@@ -93,71 +101,209 @@ class SetInterviewUrlTestCase(AppointmentsTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.aa.ddb_dump()
-        cls.aa._ddb_client.update_item(
+
+        # test appointments - no notifications default to have links and not require notifications
+        cls.at3 = app.AppointmentType(
+            ddb_client=cls.aa1._ddb_client,
+            acuity_client=cls.aa1._acuity_client,
+            logger=cls.logger,
+        )
+        cls.at3.from_dict({
+            'type_id': cls.test_data['test_appointment_no_notif_id'],
+            'has_link': True,
+            'send_notifications': False,
+        })
+        cls.at3.ddb_dump(update_allowed=True)
+
+        # create test appointments
+        cls.aa1.ddb_dump()
+        cls.aa1._ddb_client.update_item(
             table_name=app.APPOINTMENTS_TABLE,
-            key=cls.aa.appointment_id,
+            key=cls.aa1.appointment_id,
             name_value_pairs={
-                'participant_user_id': TESTER_THISCOVERY_USER_ID_MAP[utils.get_environment_name()]  # so that participant notification go to tester
+                'participant_email': TESTER_EMAIL_MAP[utils.get_environment_name()]  # so that participant notification go to tester
             }
         )
 
-    def test_00_set_interview_url_api_ok(self):
-        body = {
-            "appointment_id": self.test_data['appointment_id'],
-            "interview_url": self.test_data['interview_url'],
-            "event_type": "booking",
-        }
+        cls.aa2 = app.AcuityAppointment(
+            appointment_id=cls.test_data['test_appointment_no_notif_id'],
+            logger=cls.logger,
+        )
+        cls.aa2.ddb_dump()
+        cls.aa2._ddb_client.update_item(
+            table_name=app.APPOINTMENTS_TABLE,
+            key=cls.aa2.appointment_id,
+            name_value_pairs={
+                'participant_email': TESTER_EMAIL_MAP[utils.get_environment_name()]  # so that participant notification go to tester
+            }
+        )
+
+    def _common_routine(self, body):
         result = test_utils.test_put(
             local_method=app.set_interview_url_api,
             aws_url='v1/set-interview-url',
             request_body=json.dumps(body),
         )
         self.assertEqual(HTTPStatus.OK, result['statusCode'])
+        result_body = json.loads(result['body'])
+        self.assertEqual(HTTPStatus.OK, result_body['update_result'])
+
+        # check link updated in Dynamodb
+        updated_appointment = app.AcuityAppointment(appointment_id=body['appointment_id'])
+        updated_appointment.ddb_load()
+        return result, result_body
+
+    def test_01_set_interview_url_api_ok_appointment_type_requires_notifications(self):
+        body = {
+            "appointment_id": self.test_data['test_appointment_id'],
+            "interview_url": self.test_data['interview_url'],
+            "event_type": "booking",
+        }
+        result, result_body = self._common_routine(body=body)
+        notification_results = result_body['notification_results']
+        self.assertEqual(HTTPStatus.NO_CONTENT, notification_results['participant'])
+        self.assertEqual([HTTPStatus.NO_CONTENT] * 2, notification_results['researchers'])
+
+    def test_02_set_interview_url_api_ok_appointment_type_does_not_require_notifications(self):
+        body = {
+            "appointment_id": self.test_data['test_appointment_no_notif_id'],
+            "interview_url": self.test_data['interview_url'],
+            "event_type": "booking",
+        }
+        result, result_body = self._common_routine(body=body)
+        notification_results = result_body['notification_results']
+        self.assertIsNone(notification_results['participant'])
+        self.assertEqual(list(), notification_results['researchers'])
+
+
+class TestAppointmentType(AppointmentsTestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.at = app.AppointmentType()
+        cls.at.type_id = str(cls.test_data['dev_appointment_type_id'])
+
+    def test_03_get_appointment_type_id_to_info_map_ok(self):
+        result = self.at.get_appointment_type_id_to_info_map()
+        app_type = result[self.at.type_id]
+        expected_type = {
+            'active': True,
+            'addonIDs': [],
+            'calendarIDs': [4038206, 3887437],
+            'category': 'Tech development',
+            'classSize': None,
+            'color': '#AC53B4',
+            'description': '',
+            'duration': 30,
+            'formIDs': [],
+            'id': 14649911,
+            'image': '',
+            'name': 'Development appointment',
+            'paddingAfter': 0,
+            'paddingBefore': 0,
+            'price': '0.00',
+            'private': True,
+            'schedulingUrl': 'https://app.acuityscheduling.com/schedule.php?owner=19499339&appointmentType=14649911',
+            'type': 'service'
+        }
+        self.assertEqual(expected_type, app_type)
+
+    def test_04_get_appointment_type_info_from_acuity_ok(self):
+        at = copy.copy(self.at)
+        at.get_appointment_type_info_from_acuity()
+        self.assertEqual('Development appointment', at.name)
+        self.assertEqual('Tech development', at.category)
+
+    def test_05_ddb_dump_and_load_ok(self):
+        at = copy.copy(self.at)
+        at.get_appointment_type_info_from_acuity()
+        dump_result = at.ddb_dump(update_allowed=True)
+        self.assertEqual(HTTPStatus.OK, dump_result['ResponseMetadata']['HTTPStatusCode'])
+        with self.assertRaises(AttributeError):
+            at.type
+        at.ddb_load()
+        self.assertEqual('acuity-appointment-type', at.type)
+
+    def test_06_as_dict_ok(self):
+        at = copy.copy(self.at)
+        at.get_appointment_type_info_from_acuity()
+        expected_result = {
+            'category': 'Tech development',
+            'has_link': None,
+            'name': 'Development appointment',
+            'send_notifications': None,
+            'templates': app.DEFAULT_TEMPLATES,
+            'type_id': '14649911',
+        }
+        self.assertEqual(expected_result, at.as_dict())
+
+    def test_07_from_dict_ok(self):
+        at = copy.copy(self.at)
+        at.get_appointment_type_info_from_acuity()
+        at.from_dict(
+            {
+                'has_link': True,
+                'templates': 'test_template'
+            }
+        )
+        expected_result = {
+            'category': 'Tech development',
+            'has_link': True,
+            'name': 'Development appointment',
+            'send_notifications': None,
+            'templates': 'test_template',
+            'type_id': '14649911',
+        }
+        self.assertEqual(expected_result, at.as_dict())
 
 
 class TestAcuityAppointment(AppointmentsTestCase):
 
-    def test_01_get_appointment_type_id_to_name_map_ok(self):
-        result = self.aa.get_appointment_type_id_to_name_map()
-        self.assertEqual('Development appointment', result['14649911'])
-        self.assertEqual('Test appointment', result['14792299'])
+    def test_08_get_appointment_details_ok(self):
+        aa1 = copy.copy(self.aa1)
+        result = aa1.get_appointment_info_from_acuity()
+        self.assertEqual(self.test_data['email'], result['email'])
+        self.assertEqual(self.test_data['email'], aa1.participant_email)
+        self.assertEqual(self.test_data['calendar_name'], result['calendar'])
 
-    def test_02_get_appointment_name_ok(self):
-        result = self.aa.get_appointment_name()
-        self.assertEqual('Test appointment', result)
-
-    def test_03_get_appointment_details_ok(self):
-        email, type_id = self.aa.get_appointment_info_from_acuity()
-        self.assertEqual(self.test_data['email'], email)
-        self.assertEqual(self.aa.type_id, type_id)
-        self.assertEqual(self.test_data['calendar_name'], self.aa.calendar_name)
-
-    def test_04_store_in_dynamodb_ok(self):
-        result = self.aa.ddb_dump()
-        self.assertEqual(HTTPStatus.OK, result['ResponseMetadata']['HTTPStatusCode'])
+    def test_09_ddb_dump_and_load_ok(self):
+        aa1 = copy.copy(self.aa1)
+        dump_result = aa1.ddb_dump()
+        self.assertEqual(HTTPStatus.OK, dump_result['ResponseMetadata']['HTTPStatusCode'])
+        with self.assertRaises(AttributeError):
+            aa1.type
+        aa1.ddb_load()
+        self.assertEqual('acuity-appointment', aa1.type)
         self.clear_appointments_table()
 
-    def test_05_update_link_ok(self):
-        self.aa.ddb_dump()
-        result = self.aa.update_link('www.thiscovery.org')
-        self.assertEqual(HTTPStatus.OK, result['ResponseMetadata']['HTTPStatusCode'])
-        self.clear_appointments_table()
-
-    def test_06_get_appointment_item_from_ddb_ok(self):
-        self.aa.ddb_dump()
-        result = self.aa.get_appointment_item_from_ddb()
+    def test_10_get_appointment_item_from_ddb_ok(self):
+        aa1 = copy.copy(self.aa1)
+        aa1.ddb_dump()
+        result = aa1.get_appointment_item_from_ddb()
         self.assertEqual('acuity-appointment', result['type'])
         self.clear_appointments_table()
 
-    def test_07_get_appointment_type_info_from_ddb_ok(self):
-        project_task_id, type_status = self.aa.get_appointment_type_info_from_ddb()
-        self.assertEqual(self.test_data['project_task_id'], project_task_id)
-        self.assertEqual(self.test_data['status'], type_status)
+    def test_11_update_link_ok(self):
+        aa1 = copy.copy(self.aa1)
+        aa1.ddb_dump()
+        test_link = 'www.thiscovery.org'
+        result = aa1.update_link(test_link)
+        self.assertEqual(HTTPStatus.OK, result)
+        self.assertEqual(test_link, aa1.link)
+        self.clear_appointments_table()
 
-    def test_08_get_participant_user_id_ok(self):
-        result = self.aa.get_participant_user_id()
+    def test_12_get_participant_user_id_ok(self):
+        result = self.aa1.get_participant_user_id()
         self.assertEqual(self.test_data['participant_user_id'], result)
+
+    def test_13_ddb_load_non_existent_appointment_id(self):
+        non_existent_id = 'this-is-not-a-real-id'
+        aa = app.AcuityAppointment(appointment_id=non_existent_id)
+        with self.assertRaises(utils.ObjectDoesNotExistError) as context:
+            aa.ddb_load()
+        err = context.exception
+        err_msg = err.args[0]
+        self.assertEqual(f'Appointment {non_existent_id} could not be found in Dynamodb', err_msg)
 
 
 class TestAcuityEvent(AppointmentsTestCase):
@@ -165,25 +311,146 @@ class TestAcuityEvent(AppointmentsTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+
+        # dev appointments - no link default to not have links and require notifications (e.g. phone appointment)
+        cls.at4 = app.AppointmentType(
+            ddb_client=cls.aa1._ddb_client,
+            acuity_client=cls.aa1._acuity_client,
+            logger=cls.logger,
+        )
+        cls.at4.from_dict({
+            'type_id': cls.test_data['dev_appointment_no_link_type_id'],
+            'has_link': False,
+            'send_notifications': True,
+        })
+        cls.at4.get_appointment_type_info_from_acuity()
+        cls.at4.ddb_dump(update_allowed=True)
+
         cls.ae = app.AcuityEvent(
             acuity_event=cls.test_data['event_body'],
             logger=cls.logger,
         )
 
-    def test_08_init_ok(self):
+    def test_14_init_ok(self):
         self.assertEqual('scheduled', self.ae.event_type)
-        self.assertEqual('399682887', self.ae.appointment_id)
-        self.assertEqual('4038206', self.ae.calendar_id)
-        self.assertEqual('14792299', self.ae.type_id)
-        self.assertEqual('active', self.ae.appointment.type_status)
+        self.assertEqual('Test appointment', self.ae.appointment.appointment_type.name)
 
-    def test_09_notify_thiscovery_team_ok(self):
+    def test_15_init_fail_non_existent_appointment_type_id(self):
+        non_existent_id = '123456789'
+        event_body = f"action=appointment.scheduled" \
+                     f"&id=399682887&calendarID=4038206" \
+                     f"&appointmentTypeID={non_existent_id}"
+        with self.assertRaises(utils.ObjectDoesNotExistError):
+            app.AcuityEvent(
+                acuity_event=event_body,
+                logger=self.logger,
+            )
+
+    def test_16_init_fail_invalid_appointment_type_id(self):
+        invalid_id = 'invalid_id'
+        event_body = f"action=appointment.scheduled" \
+                     f"&id=399682887&calendarID=4038206" \
+                     f"&appointmentTypeID={invalid_id}"
+        with self.assertRaises(AttributeError):
+            app.AcuityEvent(
+                acuity_event=event_body,
+                logger=self.logger,
+            )
+
+    def test_17_notify_thiscovery_team_ok(self):
         result = self.ae.notify_thiscovery_team()
-        self.assertEqual(HTTPStatus.OK, result['statusCode'])
+        self.assertEqual(HTTPStatus.OK, result)
 
-    def test_10_process_ok(self):
-        result = self.ae.process()
-        pprint(result)
+    def test_18_process_booking_has_link_ok(self):
+        (
+            storing_result,
+            thiscovery_team_notification_result,
+            participant_and_researchers_notification_results
+        ) = self.ae.process()
+        self.assertEqual(HTTPStatus.OK, storing_result['ResponseMetadata']['HTTPStatusCode'])
+        self.assertEqual(HTTPStatus.OK, thiscovery_team_notification_result)
+        self.assertIsNone(participant_and_researchers_notification_results)
+        self.clear_appointments_table()
+
+    def test_19_process_booking_no_link_no_notifications_ok(self):
+        event_body = f"action=appointment.scheduled" \
+                     f"&id=399682887&calendarID=4038206" \
+                     f"&appointmentTypeID={self.test_data['dev_appointment_type_id']}"
+        ae = app.AcuityEvent(acuity_event=event_body, logger=self.logger)
+        (
+            storing_result,
+            thiscovery_team_notification_result,
+            participant_and_researchers_notification_results
+        ) = ae.process()
+        self.assertEqual(HTTPStatus.OK, storing_result['ResponseMetadata']['HTTPStatusCode'])
+        self.assertIsNone(thiscovery_team_notification_result)
+        self.assertIsNone(participant_and_researchers_notification_results)
+        self.clear_appointments_table()
+
+    def test_20_process_booking_no_link_with_notifications_ok(self):
+        event_body = f"action=appointment.scheduled" \
+                     f"&id=399682887&calendarID=4038206" \
+                     f"&appointmentTypeID={self.test_data['dev_appointment_no_link_type_id']}"
+        ae = app.AcuityEvent(acuity_event=event_body, logger=self.logger)
+        (
+            storing_result,
+            thiscovery_team_notification_result,
+            participant_and_researchers_notification_results
+        ) = ae.process()
+        self.assertEqual(HTTPStatus.OK, storing_result['ResponseMetadata']['HTTPStatusCode'])
+        self.assertIsNone(thiscovery_team_notification_result)
+        participant_result = participant_and_researchers_notification_results.get('participant')
+        self.assertEqual(HTTPStatus.NO_CONTENT, participant_result)
+        researchers_result = participant_and_researchers_notification_results.get('researchers')
+        self.assertEqual([HTTPStatus.NO_CONTENT]*2, researchers_result)
+        self.clear_appointments_table()
+
+    def test_21_process_cancellation_ok(self):
+        event_body = f"action=appointment.canceled" \
+                     f"&id=399682887&calendarID=4038206" \
+                     f"&appointmentTypeID={self.test_data['test_appointment_type_id']}"
+        ae = app.AcuityEvent(acuity_event=event_body, logger=self.logger)
+        (
+            storing_result,
+            thiscovery_team_notification_result,
+            participant_and_researchers_notification_results
+        ) = ae.process()
+        self.assertEqual(HTTPStatus.OK, storing_result['ResponseMetadata']['HTTPStatusCode'])
+        self.assertIsNone(thiscovery_team_notification_result)
+        participant_result = participant_and_researchers_notification_results.get('participant')
+        self.assertEqual(HTTPStatus.NO_CONTENT, participant_result)
+        researchers_result = participant_and_researchers_notification_results.get('researchers')
+        self.assertEqual([HTTPStatus.NO_CONTENT] * 2, researchers_result)
+
+    def test_22_process_rescheduling_same_calendar_ok(self):
+        self.aa1.ddb_dump(update_allowed=True)  # store original appointment in ddb
+        event_body = f"action=appointment.rescheduled" \
+                     f"&id=399682887&calendarID=4038206" \
+                     f"&appointmentTypeID={self.test_data['test_appointment_type_id']}"
+        ae = app.AcuityEvent(acuity_event=event_body, logger=self.logger)
+        (
+            storing_result,
+            thiscovery_team_notification_result,
+            participant_and_researchers_notification_results
+        ) = ae.process()
+        self.assertEqual(HTTPStatus.OK, storing_result['ResponseMetadata']['HTTPStatusCode'])
+        self.assertIsNone(thiscovery_team_notification_result)
+        participant_result = participant_and_researchers_notification_results.get('participant')
+        self.assertEqual(HTTPStatus.NO_CONTENT, participant_result)
+        researchers_result = participant_and_researchers_notification_results.get('researchers')
+        self.assertEqual([HTTPStatus.NO_CONTENT] * 2, researchers_result)
+
+    @unittest.skip
+    def test_23_process_rescheduling_different_calendar_ok(self):
+        """
+        Can't test this because process fetches latest info from Acuity rather than
+        relying on the calendarID in event_body.
+        """
+        self.aa1.ddb_dump(update_allowed=True)  # store original appointment in ddb
+        other_calendar = '3887437'
+        event_body = f"action=appointment.rescheduled" \
+                     f"&id=399682887&calendarID={other_calendar}" \
+                     f"&appointmentTypeID={self.test_data['test_appointment_type_id']}"
 
 
 class TestAppointmentNotifier(AppointmentsTestCase):
@@ -253,5 +520,3 @@ class TestAppointmentNotifier(AppointmentsTestCase):
         self.load_cancelled_appointment()
         result = self.cancelled_an.send_researcher_booking_info()
         self.assertEqual('aborted', result)
-
-
