@@ -95,6 +95,44 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
             table_name=app.APPOINTMENTS_TABLE,
         )
 
+    @classmethod
+    def populate_calendars_table(cls):
+        calendar1 = {
+            "block_monday_morning": True,
+            "details": {
+                "description": "",
+                "email": "",
+                "id": 4038206,
+                "image": False,
+                "location": "",
+                "name": "André",
+                "thumbnail": False,
+                "timezone": "Europe/London"
+            },
+            "emails_to_notify": [
+                TESTER_EMAIL_MAP[utils.get_environment_name()],
+                "fred@email.co.uk"
+            ],
+            "id": "4038206",
+            "label": "André",
+        }
+        calendar2 = copy.deepcopy(calendar1)
+        calendar2['id'] = "3887437"
+        calendar2['details']['id'] = 3887437
+        for calendar in [calendar1, calendar2]:
+            calendar_details = calendar['details']
+            del calendar['details']
+            try:
+                cls.aa1._ddb_client.put_item(
+                    table_name=app.AppointmentNotifier.calendar_table,
+                    key=calendar['id'],
+                    item_type="acuity-calendar",
+                    item_details=calendar_details,
+                    item=calendar
+                )
+            except utils.DetailedValueError:
+                pass
+
 
 class SetInterviewUrlTestCase(AppointmentsTestCase):
 
@@ -457,10 +495,11 @@ class TestAppointmentNotifier(AppointmentsTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        super().populate_calendars_table()
         cls.an = app.AppointmentNotifier(
-            appointment=cls.aa,
+            appointment=cls.aa1,
             logger=cls.logger,
-            ddb_client=cls.aa._ddb_client,
+            ddb_client=cls.aa1._ddb_client,
         )
         cls.cancelled_aa = None
         cls.cancelled_an = None
@@ -478,7 +517,7 @@ class TestAppointmentNotifier(AppointmentsTestCase):
                 logger=cls.logger,
             )
 
-    def test_10_get_email_template_ok(self):
+    def test_24_get_email_template_ok(self):
         templates = [
             ('participant', 'booking', self.test_data['email'], "interview_booked_participant"),
             ('participant', 'booking', 'doctor@nhs.org', "interview_booked_nhs_participant"),
@@ -499,24 +538,26 @@ class TestAppointmentNotifier(AppointmentsTestCase):
                 'template_name': template_name,
             })
             result = self.an._get_email_template(
+                recipient_email=email,
                 recipient_type=recipient,
                 event_type=event,
             )
-            self.assertEqual(template_name, result)
+            self.assertEqual(template_name, result['name'])
 
-    def test_11_get_researcher_email_address_ok(self):
+    def test_25_get_researcher_email_address_ok(self):
         result = self.an._get_researcher_email_address()
         self.assertEqual(2, len(result))
         self.assertIn("fred@email.co.uk", result)
 
-    def test_12_check_appointment_cancelled_not_cancelled(self):
+    def test_26_check_appointment_cancelled_not_cancelled(self):
         self.assertFalse(self.an._check_appointment_cancelled())
 
-    def test_13_check_appointment_cancelled_appointment_cancelled(self):
+    def test_27_check_appointment_cancelled_appointment_cancelled(self):
         self.load_cancelled_appointment()
         self.assertTrue(self.cancelled_an._check_appointment_cancelled())
 
-    def test_14_send_researcher_booking_info_aborted_if_appointment_cancelled(self):
+    def test_28_send_notifications_aborted_if_appointment_cancelled(self):
         self.load_cancelled_appointment()
-        result = self.cancelled_an.send_researcher_booking_info()
-        self.assertEqual('aborted', result)
+        result = self.cancelled_an.send_notifications(event_type='booking')
+        expected_result = {'participant': 'aborted', 'researchers': ['aborted', 'aborted']}
+        self.assertEqual(expected_result, result)

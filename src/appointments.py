@@ -271,8 +271,8 @@ class AcuityAppointment:
             f'Call to ddb client update_item method failed with response {result}'
         return result['ResponseMetadata']['HTTPStatusCode']
 
-    def get_appointment_info_from_acuity(self):
-        if self.acuity_info is None:
+    def get_appointment_info_from_acuity(self, force_refresh=False):
+        if (self.acuity_info is None) or (force_refresh is True):
             self.acuity_info = self._acuity_client.get_appointment_by_id(self.appointment_id)
             self.appointment_type.type_id = str(self.acuity_info['appointmentTypeID'])
             self.calendar_name = self.acuity_info['calendar']
@@ -313,10 +313,20 @@ class AppointmentNotifier:
     def _get_researcher_email_address(self):
         if self.appointment.calendar_id is None:
             self.appointment.get_appointment_info_from_acuity()
-        return self.ddb_client.get_item(
+        calendar_item = self.ddb_client.get_item(
             table_name=self.calendar_table,
             key=self.appointment.calendar_id
-        )['emails_to_notify']
+        )
+        try:
+            return calendar_item['emails_to_notify']
+        except TypeError:
+            raise utils.ObjectDoesNotExistError(
+                f'Calendar {self.appointment.calendar_id} not found in Dynamodb',
+                details={
+                    'appointment': self.appointment,
+                    'correlation_id': self.correlation_id,
+                }
+            )
 
     def _check_appointment_cancelled(self):
         """
@@ -325,7 +335,7 @@ class AppointmentNotifier:
         Returns:
             True is appointment is cancelled; False if it is not cancelled
         """
-        self.appointment.get_appointment_info_from_acuity()
+        self.appointment.get_appointment_info_from_acuity(force_refresh=True)
         return self.appointment.acuity_info['canceled'] is True
 
     def _abort_notification_check(self, event_type):
@@ -366,7 +376,7 @@ class AppointmentNotifier:
 
     def _notify_participant(self, event_type):
         if self._abort_notification_check(event_type=event_type) is True:
-            return 'aborted'
+            return {'statusCode': 'aborted'}
         result = self._notify_email(
             recipient_email=self.appointment.participant_email,
             recipient_type='participant',
@@ -380,11 +390,12 @@ class AppointmentNotifier:
         return result
 
     def _notify_researchers(self, event_type):
+        researchers_email_list = self._get_researcher_email_address()
         if self._abort_notification_check(event_type=event_type) is True:
-            return 'aborted'
+            return [{'statusCode': 'aborted'}] * len(researchers_email_list)
 
         results = list()
-        for researcher_email in self._get_researcher_email_address():
+        for researcher_email in researchers_email_list:
             r = self._notify_email(
                 recipient_email=researcher_email,
                 recipient_type='researcher',
@@ -399,7 +410,7 @@ class AppointmentNotifier:
         participant_result = self._notify_participant(event_type=event_type)
         researchers_results = self._notify_researchers(event_type=event_type)
         return {
-            'participant': participant_result['statusCode'],
+            'participant': participant_result.get('statusCode'),
             'researchers': [r['statusCode'] for r in researchers_results],
         }
 
