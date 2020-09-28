@@ -28,77 +28,239 @@ from dateutil import parser
 
 
 APPOINTMENTS_TABLE = 'Appointments'
+APPOINTMENT_TYPES_TABLE = 'AppointmentTypes'
+
+DEFAULT_TEMPLATES = {  # fallback default templates (to be overwritten if specified in Dynamodb table)
+    'participant': {
+        'booking': {
+            'nhs': {
+                'name': "interview_booked_nhs_participant",
+                'custom_properties': [
+                    'interview_url',
+                ]
+            },
+            'other': {
+                'name': "interview_booked_participant",
+                'custom_properties': [
+                    'interview_url',
+                ]
+            },
+        },
+        'rescheduling': {
+            'nhs': {
+                'name': "interview_rescheduled_nhs_participant",
+                'custom_properties': [
+                    'interview_url',
+                ]
+            },
+            'other': {
+                'name': "interview_rescheduled_participant",
+                'custom_properties': [
+                    'interview_url',
+                ]
+            },
+        },
+        'cancellation': {
+            'nhs': {
+                'name': "interview_cancelled_nhs_participant",
+                'custom_properties': [
+                    'interview_url',
+                ]
+            },
+            'other': {
+                'name': "interview_cancelled_participant",
+                'custom_properties': [
+                    'interview_url',
+                ]
+            },
+        },
+    },
+    'researcher': {
+        'booking': {
+            'other': {
+                'name': "interview_booked_researcher",
+                'custom_properties': [
+                    'interview_url',
+                ]
+            },
+        },
+        'rescheduling': {
+            'other': {
+                'name': "interview_rescheduled_researcher",
+                'custom_properties': [
+                    'interview_url',
+                ]
+            },
+        },
+        'cancellation': {
+            'other': {
+                'name': "interview_cancelled_researcher",
+                'custom_properties': [
+                    'interview_url',
+                ]
+            },
+        },
+    },
+}
+
+
+class AppointmentType:
+    """
+    Represents an Acuity appointment type with additional attributes
+    """
+    def __init__(self, ddb_client=None, acuity_client=None, logger=None, correlation_id=None):
+        self.type_id = None
+        self.name = None
+        self.category = None
+        self.has_link = None
+        self.send_notifications = None
+        self.templates = DEFAULT_TEMPLATES
+        self.modified = None  # flag used in ddb_load method to check if ddb data was already fetched
+
+        self._logger = logger
+        self._correlation_id = correlation_id
+        if logger is None:
+            self._logger = utils.get_logger()
+        self._ddb_client = ddb_client
+        if ddb_client is None:
+            self._ddb_client = Dynamodb()
+        self._acuity_client = acuity_client
+        if acuity_client is None:
+            self._acuity_client = AcuityClient(correlation_id=self._correlation_id)
+
+    def as_dict(self):
+        return {k: v for k, v in self.__dict__.items() if (k[0] != "_") and (k not in ['created', 'modified'])}
+
+    def from_dict(self, type_dict):
+        self.__dict__.update(type_dict)
+
+    def ddb_dump(self, update_allowed=False):
+        return self._ddb_client.put_item(
+            table_name=APPOINTMENT_TYPES_TABLE,
+            key=str(self.type_id),
+            item_type='acuity-appointment-type',
+            item_details=None,
+            item=self.as_dict(),
+            update_allowed=update_allowed
+        )
+
+    def ddb_load(self):
+        if self.modified is None:
+            item = self._ddb_client.get_item(
+                table_name=APPOINTMENT_TYPES_TABLE,
+                key=str(self.type_id),
+                correlation_id=self._correlation_id
+            )
+            try:
+                self.__dict__.update(item)
+            except TypeError:
+                raise utils.ObjectDoesNotExistError(
+                    f'Appointment type {self.type_id} could not be found in Dynamodb',
+                    details={
+                        'appointment_type': self.as_dict(),
+                        'correlation_id': self._correlation_id,
+                    }
+                )
+
+    def get_appointment_type_id_to_info_map(self):
+        """
+        Converts the list of appointment types returned by AcuityClient.get_appointment_types()
+        to a dictionary indexed by id
+        """
+        appointment_types = self._acuity_client.get_appointment_types()
+        return {str(x['id']): x for x in appointment_types}
+
+    def get_appointment_type_info_from_acuity(self):
+        """
+        There is no direct method to get a appointment type by id (https://developers.acuityscheduling.com/reference), so
+        we have to fetch all appointment types and lookup
+        """
+        if (self.name is None) or (self.category is None):
+            id_to_info = self.get_appointment_type_id_to_info_map()
+            self.name = id_to_info[str(self.type_id)]['name']
+            self.category = id_to_info[str(self.type_id)]['category']
 
 
 class AcuityAppointment:
-    appointment_type_table = 'AppointmentTypes'
-
-    def __init__(self, appointment_id, logger, type_id=None, calendar_id=None, correlation_id=None):
-        self.logger = logger
-        self.correlation_id = correlation_id
-        self.acuity_client = AcuityClient(correlation_id=self.correlation_id)
-        self.ddb_client = Dynamodb()
-        self.core_api_client = CoreApiClient(correlation_id=self.correlation_id)
+    """
+    Represents an Acuity appointment
+    """
+    def __init__(self, appointment_id, logger=None, correlation_id=None):
         self.appointment_id = str(appointment_id)
-        self.type_id = None
-        if type_id:
-            self.type_id = str(type_id)
+        self.acuity_info = None
         self.calendar_id = None
-        if calendar_id:
-            self.calendar_id = str(calendar_id)
         self.calendar_name = None
-        self.details = None
-        self.type_name = None
-        self.type_status = None
-        self.has_link = None
         self.link = None
+        self.participant_email = None
         self.participant_user_id = None
+        self.appointment_type = AppointmentType()
+
+        self._logger = logger
+        if self._logger is None:
+            self._logger = utils.get_logger()
+        self._correlation_id = correlation_id
+        self._acuity_client = AcuityClient(correlation_id=self._correlation_id)
+        self._ddb_client = Dynamodb()
+        self._core_api_client = CoreApiClient(correlation_id=self._correlation_id)
 
     def __repr__(self):
         return str(self.__dict__)
 
-    def load_ddb_data(self):
-        item = self.get_appointment_item_from_ddb()
-        self.type_id = item['type_id']
-        self.type_name = item['type_name']
-        self.participant_user_id = item['participant_user_id']
-        self.calendar_id = item['calendar_id']
-        self.calendar_name = item['calendar_name']
-        self.link = item['link']
-        self.details = item['details']
+    def as_dict(self):
+        d = {k: v for k, v in self.__dict__.items() if (k[0] != "_") and (k not in ['created', 'modified', 'appointment_type'])}
+        d['appointment_type'] = self.appointment_type.as_dict()
+        return d
 
-    def get_participant_user_id(self):
-        if self.details is None:
-            self.get_appointment_details()
-        if self.participant_user_id is None:
-            self.participant_user_id = self.core_api_client.get_user_id_by_email(
-                email=self.details['email']
-            )
-        return self.participant_user_id
-
-    def store_in_dynamodb(self, update_allowed=False):
-        self.get_appointment_name()
-        self.get_appointment_details()
-        self.get_participant_user_id()
-        return self.ddb_client.put_item(
+    def ddb_dump(self, update_allowed=False):
+        self.get_appointment_info_from_acuity()  # populates self.appointment_type.type_id
+        self.appointment_type.ddb_load()
+        # self.get_participant_user_id()
+        return self._ddb_client.put_item(
             table_name=APPOINTMENTS_TABLE,
             key=self.appointment_id,
             item_type='acuity-appointment',
-            item_details=self.details,
-            item={
-                'type_id': self.type_id,
-                'type_name': self.type_name,
-                'participant_user_id': self.participant_user_id,
-                'calendar_id': self.calendar_id,
-                'calendar_name': self.calendar_name,
-                'link': self.link,
-            },
+            item_details=None,
+            item=self.as_dict(),
             update_allowed=update_allowed
         )
 
+    def ddb_load(self):
+        item = self.get_appointment_item_from_ddb()
+        try:
+            item_app_type = item['appointment_type']
+        except TypeError:
+            raise utils.ObjectDoesNotExistError(
+                f'Appointment {self.appointment_id} could not be found in Dynamodb',
+                details={
+                    'appointment': self.as_dict(),
+                    'correlation_id': self._correlation_id,
+                }
+            )
+        del item['appointment_type']
+        self.__dict__.update(item)
+        self.appointment_type.from_dict(item_app_type)
+
+    def get_appointment_item_from_ddb(self):
+        return self._ddb_client.get_item(
+            table_name=APPOINTMENTS_TABLE,
+            key=self.appointment_id
+        )
+
+    def get_participant_user_id(self):
+        """
+        Not currently used, but might be useful in the near future.
+        """
+        if self.participant_user_id is None:
+            if self.participant_email is None:
+                self.get_appointment_info_from_acuity()
+            self.participant_user_id = self._core_api_client.get_user_id_by_email(
+                email=self.participant_email
+            )
+        return self.participant_user_id
+
     def update_link(self, link):
         self.link = link
-        result = self.ddb_client.update_item(
+        result = self._ddb_client.update_item(
             table_name=APPOINTMENTS_TABLE,
             key=self.appointment_id,
             name_value_pairs={
@@ -107,43 +269,22 @@ class AcuityAppointment:
         )
         assert result['ResponseMetadata']['HTTPStatusCode'] == HTTPStatus.OK, \
             f'Call to ddb client update_item method failed with response {result}'
-        return result
+        return result['ResponseMetadata']['HTTPStatusCode']
 
-    def get_appointment_type_id_to_name_map(self):
-        appointment_types = self.acuity_client.get_appointment_types()
-        return {str(x['id']): x['name'] for x in appointment_types}
-
-    def get_appointment_name(self):
-        if self.type_name is None:
-            id_to_name = self.get_appointment_type_id_to_name_map()
-            self.type_name = id_to_name[self.type_id]
-        return self.type_name
-
-    def get_appointment_details(self):
-        if self.details is None:
-            self.details = self.acuity_client.get_appointment_by_id(self.appointment_id)
-            self.details['appointmentTypeID'] = str(self.details['appointmentTypeID'])
-            self.calendar_name = self.details['calendar']
-            self.calendar_id = str(self.details['calendarID'])
-        return self.details['email'], self.details['appointmentTypeID']
-
-    def get_appointment_item_from_ddb(self):
-        return self.ddb_client.get_item(
-            table_name=APPOINTMENTS_TABLE,
-            key=self.appointment_id
-        )
-
-    def get_appointment_type_info_from_ddb(self):
-        item = self.ddb_client.get_item(self.appointment_type_table, self.type_id, correlation_id=self.correlation_id)
-        self.type_status = item['status']
-        self.has_link = item['user_specific_interview_link']
-        return item['project_task_id'], self.type_status
+    def get_appointment_info_from_acuity(self, force_refresh=False):
+        if (self.acuity_info is None) or (force_refresh is True):
+            self.acuity_info = self._acuity_client.get_appointment_by_id(self.appointment_id)
+            self.appointment_type.type_id = str(self.acuity_info['appointmentTypeID'])
+            self.calendar_name = self.acuity_info['calendar']
+            self.calendar_id = str(self.acuity_info['calendarID'])
+            self.participant_email = self.acuity_info['email']
+        return self.acuity_info
 
 
 class AppointmentNotifier:
     calendar_table = 'Calendars'
 
-    def __init__(self, appointment, logger, ddb_client=None, correlation_id=None):
+    def __init__(self, appointment, logger=None, ddb_client=None, correlation_id=None):
         """
         Args:
             appointment: instance of AcuityAppointment
@@ -151,57 +292,41 @@ class AppointmentNotifier:
             correlation_id:
         """
         self.appointment = appointment
-        try:
-            self.participant_email = self.appointment.details['email'].lower()
-        except TypeError:
-            self.appointment.get_appointment_details()
-            self.participant_email = self.appointment.details['email'].lower()
+
+        if self.appointment.participant_email is None:
+            self.appointment.get_appointment_info_from_acuity()
+
         self.logger = logger
+        if logger is None:
+            self.logger = utils.get_logger()
         self.correlation_id = correlation_id
         self.ddb_client = ddb_client
-        if self.ddb_client is None:
+        if ddb_client is None:
             self.ddb_client = Dynamodb()
 
-    def _get_email_template(self, recipient_type, event_type):
+    def _get_email_template(self, recipient_email, recipient_type, event_type):
         email_domain = 'other'
-        if (recipient_type == 'participant') and ('@nhs' in self.participant_email):
+        if (recipient_type == 'participant') and ('@nhs' in recipient_email):
             email_domain = 'nhs'
-        template_dict = {
-            'participant': {
-                'booking': {
-                    'nhs': "interview_booked_nhs_participant",
-                    'other': "interview_booked_participant",
-                },
-                'rescheduling': {
-                    'nhs': "interview_rescheduled_nhs_participant",
-                    'other': "interview_rescheduled_participant",
-                },
-                'cancellation': {
-                    'nhs': "interview_cancelled_nhs_participant",
-                    'other': "interview_cancelled_participant",
-                },
-            },
-            'researcher': {
-                'booking': {
-                    'other': "interview_booked_researcher",
-                },
-                'rescheduling': {
-                    'other': "interview_rescheduled_researcher",
-                },
-                'cancellation': {
-                    'other': "interview_cancelled_researcher",
-                },
-            },
-        }
-        return template_dict[recipient_type][event_type][email_domain]
+        return self.appointment.appointment_type.templates[recipient_type][event_type][email_domain]
 
     def _get_researcher_email_address(self):
         if self.appointment.calendar_id is None:
-            self.appointment.get_appointment_details()
-        return self.ddb_client.get_item(
+            self.appointment.get_appointment_info_from_acuity()
+        calendar_item = self.ddb_client.get_item(
             table_name=self.calendar_table,
             key=self.appointment.calendar_id
-        )['emails_to_notify']
+        )
+        try:
+            return calendar_item['emails_to_notify']
+        except TypeError:
+            raise utils.ObjectDoesNotExistError(
+                f'Calendar {self.appointment.calendar_id} not found in Dynamodb',
+                details={
+                    'appointment': self.appointment,
+                    'correlation_id': self.correlation_id,
+                }
+            )
 
     def _check_appointment_cancelled(self):
         """
@@ -210,8 +335,8 @@ class AppointmentNotifier:
         Returns:
             True is appointment is cancelled; False if it is not cancelled
         """
-        self.appointment.get_appointment_details()
-        return self.appointment.details['canceled'] is True
+        self.appointment.get_appointment_info_from_acuity(force_refresh=True)
+        return self.appointment.acuity_info['canceled'] is True
 
     def _abort_notification_check(self, event_type):
         if not event_type == 'cancellation':
@@ -223,71 +348,81 @@ class AppointmentNotifier:
                 return True
         return False
 
-    def _notify_participant(self, event_type, extra_custom_properties=dict()):
-        if self._abort_notification_check(event_type=event_type) is True:
-            return 'aborted'
-
-        result = self.appointment.core_api_client.send_transactional_email(
-            template_name=self._get_email_template(
-                recipient_type='participant',
-                event_type=event_type,
-            ),
-            to_recipient_id=self.appointment.participant_user_id,
-            custom_properties={
+    def _get_custom_properties(self, properties_list):
+        if properties_list:
+            properties_map = {
                 'interview_url': self.appointment.link,
-                **extra_custom_properties,
             }
+            try:
+                return {k: properties_map[k] for k in properties_list}
+            except KeyError:
+                raise utils.DetailedValueError('Custom property name not found in properties_map', details={
+                    'properties_list': properties_list,
+                    'properties_map': properties_map,
+                    'correlation_id': self.correlation_id,
+                })
+
+    def _notify_email(self, recipient_email, recipient_type, event_type):
+        template = self._get_email_template(
+            recipient_email=recipient_email,
+            recipient_type=recipient_type,
+            event_type=event_type,
+        )
+        return self.appointment._core_api_client.send_transactional_email(
+            template_name=template['name'],
+            to_recipient_email=recipient_email,
+            custom_properties=self._get_custom_properties(template['custom_properties'])
+        )
+
+    def _notify_participant(self, event_type):
+        if self._abort_notification_check(event_type=event_type) is True:
+            return {'statusCode': 'aborted'}
+        result = self._notify_email(
+            recipient_email=self.appointment.participant_email,
+            recipient_type='participant',
+            event_type=event_type
         )
         if result['statusCode'] != HTTPStatus.NO_CONTENT:
-            self.logger.error(f'Failed to notify {self.participant_email} of new interview appointment', extra={
+            self.logger.error(f'Failed to notify {self.appointment.participant_email} of new interview appointment', extra={
                 'appointment': self.appointment,
                 'correlation_id': self.correlation_id
             })
         return result
 
-    def _notify_researcher(self, event_type, extra_custom_properties=dict()):
+    def _notify_researchers(self, event_type):
+        researchers_email_list = self._get_researcher_email_address()
         if self._abort_notification_check(event_type=event_type) is True:
-            return 'aborted'
+            return [{'statusCode': 'aborted'}] * len(researchers_email_list)
 
-        for researcher_email in self._get_researcher_email_address():
-            result = self.appointment.core_api_client.send_transactional_email(
-                template_name=self._get_email_template(
-                    recipient_type='researcher',
-                    event_type=event_type,
-                ),
-                to_recipient_email=researcher_email,
-                custom_properties={
-                    'interview_url': self.appointment.link,
-                    **extra_custom_properties,
-                }
+        results = list()
+        for researcher_email in researchers_email_list:
+            r = self._notify_email(
+                recipient_email=researcher_email,
+                recipient_type='researcher',
+                event_type=event_type
             )
-            if result['statusCode'] != HTTPStatus.NO_CONTENT:
+            if r['statusCode'] != HTTPStatus.NO_CONTENT:
                 self.logger.error(f'Failed to notify {researcher_email} of new interview appointment', extra={'appointment': self.appointment})
+            results.append(r)
+        return results
 
-    def send_participant_booking_info(self):
-        return self._notify_participant('booking')
-
-    def send_participant_rescheduling_info(self):
-        return self._notify_participant('rescheduling')
-
-    def send_participant_cancellation_info(self):
-        return self._notify_participant('cancellation')
-
-    def send_researcher_booking_info(self):
-        return self._notify_researcher('booking')
-
-    def send_researcher_rescheduling_info(self):
-        return self._notify_researcher('rescheduling')
-
-    def send_researcher_cancellation_info(self):
-        return self._notify_researcher('cancellation')
+    def send_notifications(self, event_type):
+        participant_result = self._notify_participant(event_type=event_type)
+        researchers_results = self._notify_researchers(event_type=event_type)
+        return {
+            'participant': participant_result.get('statusCode'),
+            'researchers': [r['statusCode'] for r in researchers_results],
+        }
 
 
 class AcuityEvent:
 
-    def __init__(self, acuity_event, logger, correlation_id=None):
+    def __init__(self, acuity_event, logger=None, correlation_id=None):
         self.logger = logger
+        if logger is None:
+            self.logger = utils.get_logger()
         self.correlation_id = correlation_id
+
         event_pattern = re.compile(
             r"action=appointment\.(?P<action>scheduled|rescheduled|canceled|changed)"
             r"&id=(?P<appointment_id>\d+)"
@@ -296,53 +431,61 @@ class AcuityEvent:
         )
         m = event_pattern.match(acuity_event)
         try:
-            self.action = m.group('action')
-            self.appointment_id = m.group('appointment_id')
-            self.type_id = m.group('type_id')
-            self.calendar_id = m.group('calendar_id')
+            self.event_type = m.group('action')
+            appointment_id = m.group('appointment_id')
+            type_id = m.group('type_id')
         except AttributeError as err:
             self.logger.error('event_pattern does not match acuity_event', extra={'acuity_event': acuity_event})
             raise
         self.appointment = AcuityAppointment(
-            appointment_id=self.appointment_id,
+            appointment_id=appointment_id,
             logger=self.logger,
             correlation_id=self.correlation_id,
-            type_id=self.type_id,
-            calendar_id=self.calendar_id,
         )
-        self.appointment.get_appointment_type_info_from_ddb()
+        self.appointment.appointment_type.type_id = type_id
+        try:
+            self.appointment.appointment_type.ddb_load()
+        except utils.ObjectDoesNotExistError:
+            self.logger.error(
+                'Failed to process Acuity event (Appointment type not found in Dynamodb)',
+                extra={
+                    'event': acuity_event,
+                    'correlation_id': self.correlation_id
+                }
+            )
+            raise
 
     def __repr__(self):
         return str(self.__dict__)
 
     def notify_thiscovery_team(self):
-        if self.appointment.details is None:
-            self.appointment.get_appointment_details()
-        appointment_type_name = self.appointment.get_appointment_name()
+        if self.appointment.acuity_info is None:
+            self.appointment.get_appointment_info_from_acuity()
+        appointment_type_name = self.appointment.appointment_type.name
         emails_client = EmailsApiClient(self.correlation_id)
         appointment_management_secret = utils.get_secret('interviews')['appointment-management']
         appointment_manager = appointment_management_secret['manager']
         if utils.running_unit_tests():
             appointment_manager = appointment_management_secret['tester']
         notification_email_source = appointment_management_secret['notification-email-source']
-        appointment_date = f"{parser.parse(self.appointment.details['datetime']).strftime('%d/%m/%Y %H:%M')}" \
-                           f"-{self.appointment.details['endTime']}"
-        interviewee_name = f"{self.appointment.details['firstName']} {self.appointment.details['lastName']}"
-        interviewee_email = self.appointment.details['email']
-        interviewer_calendar_name = self.appointment.details['calendar']
-        confirmation_page = self.appointment.details['confirmationPage']
+        appointment_date = f"{parser.parse(self.appointment.acuity_info['datetime']).strftime('%d/%m/%Y %H:%M')}" \
+                           f"-{self.appointment.acuity_info['endTime']}"
+        interviewee_name = f"{self.appointment.acuity_info['firstName']} {self.appointment.acuity_info['lastName']}"
+        interviewee_email = self.appointment.acuity_info['email']
+        interviewer_calendar_name = self.appointment.acuity_info['calendar']
+        confirmation_page = self.appointment.acuity_info['confirmationPage']
         email_dict = {
             "source": notification_email_source,
             "to": appointment_manager,
-            "subject": f"[thiscovery-interviews] Appointment {self.appointment_id} {self.action}",
-            "body_text": f"The following interview appointment has just been {self.action}:\n"
+            "subject": f"[thiscovery-interviews] Appointment {self.appointment.appointment_id} {self.event_type}",
+            "body_text": f"The following interview appointment has just been {self.event_type}:\n"
                          f"Type: {appointment_type_name}\n"
                          f"Date: {appointment_date}\n"
                          f"Interviewee name: {interviewee_name}\n"
                          f"Interviewee email: {interviewee_email}\n"
                          f"Interviewer: {interviewer_calendar_name}\n"
                          f"Cancel/reschedule: {confirmation_page}\n",
-            "body_html": f"<p>The following interview appointment has just been {self.action}:</p>"
+            "body_html": f"<p>The following interview appointment has just been {self.event_type}:</p>"
                          f"<ul>"
                          f"<li>Type: {appointment_type_name}</li>"
                          f"<li>Date: {appointment_date}</li>"
@@ -352,103 +495,58 @@ class AcuityEvent:
                          f"<li>Cancel/reschedule: {confirmation_page}</li>"
                          f"</ul>",
         }
-        return emails_client.send_email(email_dict=email_dict)
+        result = emails_client.send_email(email_dict=email_dict)
+        assert result['statusCode'] == HTTPStatus.OK, f'Failed to email Thiscovery team. ' \
+                                                      f'Send-email endpoint returned {result}'
+        return result['statusCode']
 
-    def complete_thiscovery_user_task(self):
-        """
-        This is a legacy method that should be no longer used. Leaving the code here for now but raising an error if it is called.
-        """
-        raise utils.DetailedValueError('complete_thiscovery_user_task should no longer be used', details={})
-
-        self.logger.info('Parsed Acuity event', extra={
-            'action': self.action,
-            'appointment_id': self.appointment_id,
-            'type_id': self.type_id
-        })
-        email, appointment_type_id = self.appointment.get_appointment_details()
-        assert str(appointment_type_id) == self.type_id, f'Unexpected appointment type id ({appointment_type_id}) in get_appointment_by_id response. ' \
-                                                         f'Expected: {self.type_id}.'
-        try:
-            self.appointment.participant_user_id = self.core_api_client.get_user_id_by_email(email)
-        except Exception as err:
-            self.logger.error(f'Failed to retrieve user_id for {email}', extra={
-                'exception': repr(err)
-            })
-            raise err
-
-        try:
-            project_task_id, appointment_type_status = self.appointment.get_appointment_type_info_from_ddb()
-        except Exception as err:
-            self.logger.error(f'Failed to retrieve project_task_id for appointment_type_id {self.type_id}', extra={
-                'exception': repr(err)
-            })
-            raise err
-
-        if appointment_type_status in ['active']:
-            user_task_id = self.core_api_client.get_user_task_id_for_project(self.appointment.participant_user_id, project_task_id)
-            self.logger.debug('user_task_id', extra={
-                'user_task_id': user_task_id
-            })
-            result = self.core_api_client.set_user_task_completed(user_task_id)
-            self.logger.info(f'Updated user task {user_task_id} status to complete')
-            return result
-        else:
-            self.logger.info('Ignored appointment', extra={
-                'appointment_id': self.appointment_id,
-                'appointment_type_id': self.type_id,
-                'type_status': appointment_type_status
-            })
-            return {
-                "statusCode": HTTPStatus.NO_CONTENT
-            }
-
-    def _process_booking(self):
-        storing_result = self.appointment.store_in_dynamodb()
-        if self.appointment.has_link:
-            email_notification_result = self.notify_thiscovery_team()
-            assert email_notification_result['statusCode'] == HTTPStatus.OK, 'Failed to email Thiscovery team'
-        return storing_result
-
-    def _process_cancellation(self):
-        storing_result = self.appointment.store_in_dynamodb(update_allowed=True)
-        if self.appointment.has_link:
+    def _notify_participant_and_researchers(self, event_type):
+        if self.appointment.appointment_type.send_notifications is True:
             notifier = AppointmentNotifier(
                 appointment=self.appointment,
                 logger=self.logger,
                 correlation_id=self.correlation_id,
             )
-            notifier.send_participant_cancellation_info()
-            notifier.send_researcher_cancellation_info()
-        return storing_result
+            return notifier.send_notifications(event_type=event_type)
 
-    def _process_resheduling(self):
+    def _process_booking(self):
+        storing_result = self.appointment.ddb_dump()
+        thiscovery_team_notification_result = None
+        participant_and_researchers_notification_results = None
+        if self.appointment.appointment_type.has_link:
+            thiscovery_team_notification_result = self.notify_thiscovery_team()
+        else:
+            participant_and_researchers_notification_results = self._notify_participant_and_researchers(event_type='booking')
+        return storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results
+
+    def _process_cancellation(self):
+        storing_result = self.appointment.ddb_dump(update_allowed=True)
+        thiscovery_team_notification_result = None
+        participant_and_researchers_notification_results = self._notify_participant_and_researchers(event_type='cancellation')
+        return storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results
+
+    def _process_rescheduling(self):
         original_booking_info = self.appointment.get_appointment_item_from_ddb()
-        storing_result = self.appointment.store_in_dynamodb(update_allowed=True)
-        if self.appointment.has_link:
-            if original_booking_info['calendar_id'] == self.calendar_id:
-                notifier = AppointmentNotifier(
-                    appointment=self.appointment,
-                    logger=self.logger,
-                    correlation_id=self.correlation_id,
-                )
-                notifier.send_participant_rescheduling_info()
-                notifier.send_researcher_rescheduling_info()
-            else:
-                email_notification_result = self.notify_thiscovery_team()
-                assert email_notification_result == HTTPStatus.OK, 'Failed to email Thiscovery team'
-        return storing_result
+        storing_result = self.appointment.ddb_dump(update_allowed=True)
+        thiscovery_team_notification_result = None
+        participant_and_researchers_notification_results = None
+        if original_booking_info['calendar_id'] == self.appointment.calendar_id:
+            participant_and_researchers_notification_results = self._notify_participant_and_researchers(event_type='rescheduling')
+        else:
+            thiscovery_team_notification_result = self.notify_thiscovery_team()
+        return storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results
 
     def process(self):
-        if self.action == 'scheduled':
-            result = self._process_booking()
-        elif self.action == 'canceled':
-            result = self._process_cancellation()
-        elif self.action == 'rescheduled':
-            result = self._process_resheduling()
+        if self.event_type == 'scheduled':
+            storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results = self._process_booking()
+        elif self.event_type == 'canceled':
+            storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results = self._process_cancellation()
+        elif self.event_type == 'rescheduled':
+            storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results = self._process_rescheduling()
         else:
-            raise NotImplementedError(f'Processing of a {self.action} appointment has not been implemented')
+            raise NotImplementedError(f'Processing of a {self.event_type} appointment has not been implemented')
 
-        return result
+        return storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results
 
 
 def set_interview_url(appointment_id, interview_url, event_type, logger=None, correlation_id=None):
@@ -462,6 +560,8 @@ def set_interview_url(appointment_id, interview_url, event_type, logger=None, co
         correlation_id:
 
     Returns:
+        update_result:
+        notification_results (dict): Dictionary containing participant and researchers notification results
 
     """
     if logger is None:
@@ -471,23 +571,24 @@ def set_interview_url(appointment_id, interview_url, event_type, logger=None, co
         logger=logger,
         correlation_id=correlation_id,
     )
-    appointment.load_ddb_data()
-    appointment.update_link(
+    appointment.ddb_load()
+    update_result = appointment.update_link(
         link=interview_url
     )
-    notifier = AppointmentNotifier(
-        appointment=appointment,
-        logger=logger,
-        correlation_id=correlation_id,
-    )
-    if event_type == 'booking':
-        notifier.send_participant_booking_info()
-        notifier.send_researcher_booking_info()
-    elif event_type == 'rescheduling':
-        notifier.send_participant_rescheduling_info()
-        notifier.send_researcher_rescheduling_info()
-    else:
-        raise NotImplementedError(f'Processing of {event_type} events not implemented')
+    notification_results = {
+        'participant': None,
+        'researchers': list(),
+    }
+    if appointment.appointment_type.send_notifications is True:
+        notifier = AppointmentNotifier(
+            appointment=appointment,
+            logger=logger,
+            correlation_id=correlation_id,
+        )
+        notification_results = notifier.send_notifications(
+            event_type=event_type
+        )
+    return update_result, notification_results
 
 
 def send_reminder():
@@ -527,11 +628,16 @@ def set_interview_url_api(event, context):
         'body': body,
         'correlation_id': correlation_id
     })
-    set_interview_url(
+    update_result, notification_results = set_interview_url(
         appointment_id=body['appointment_id'],
         interview_url=body['interview_url'],
         event_type=body['event_type'],
         logger=logger,
         correlation_id=correlation_id,
     )
-    return {"statusCode": HTTPStatus.OK}
+    response_body = {
+        'update_result': update_result,
+        'notification_results': notification_results,
+        'correlation_id': correlation_id,
+    }
+    return {"statusCode": HTTPStatus.OK, 'body': json.dumps(response_body)}

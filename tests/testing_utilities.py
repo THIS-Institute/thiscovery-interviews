@@ -51,6 +51,8 @@ class BaseTestCase(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        if cls.secrets_client is None:
+            cls.secrets_client = utils.SecretsManager()
         cls.secrets_client.create_or_update_secret('runtime-parameters', {'running-tests': 'false'})
         utils.set_running_unit_tests(False)
 
