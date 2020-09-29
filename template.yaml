@@ -168,6 +168,8 @@ Resources:
             TopicName: !GetAtt InterviewNotifications.TopicName
         - DynamoDBCrudPolicy:
             TableName: !Ref Appointments
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Calendars
       Events:
         InterviewsApiPOSTv1interviewappointment:
           Type: Api
@@ -184,6 +186,8 @@ Resources:
           TOPIC_ARN: !Ref InterviewNotifications
           TABLE_NAME_2: !Ref Appointments
           TABLE_ARN_2: !GetAtt Appointments.Arn
+          TABLE_NAME_3: !Ref Calendars
+          TABLE_ARN_3: !GetAtt Calendars.Arn
   Appointments:
     Type: AWS::DynamoDB::Table
     Properties:
