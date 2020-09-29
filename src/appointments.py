@@ -257,6 +257,14 @@ class AppointmentNotifier:
                     'correlation_id': self.correlation_id,
                 }
             )
+        except KeyError:
+            raise utils.ObjectDoesNotExistError(
+                f'Calendar {self.appointment.calendar_id} Dynamodb item does not contain an emails_to_notify column',
+                details={
+                    'appointment': self.appointment,
+                    'correlation_id': self.correlation_id,
+                }
+            )
 
     def _check_appointment_cancelled(self):
         """
