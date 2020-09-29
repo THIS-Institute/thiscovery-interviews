@@ -132,3 +132,101 @@ DEFAULT_TEMPLATES = {  # fallback default templates (to be overwritten if specif
         },
     },
 }
+
+
+TEST_TEMPLATES = {  # non-existent templates for unittests
+    'participant': {
+        'booking': {
+            'web': {
+                'nhs': {
+                    'name': "non-existent template",
+                    'custom_properties': WEB_PROPERTIES
+                },
+                'other': {
+                    'name': "non-existent template",
+                    'custom_properties': WEB_PROPERTIES
+                },
+            },
+            'phone': {
+                'nhs': {
+                    'name': "non-existent template",
+                    'custom_properties': BOOKING_RESCHEDULING_PROPERTIES
+                },
+                'other': {
+                    'name': "non-existent template",
+                    'custom_properties': BOOKING_RESCHEDULING_PROPERTIES
+                },
+            },
+        },
+        'rescheduling': {
+            'web': {
+                'nhs': {
+                    'name': "non-existent template",
+                    'custom_properties': WEB_PROPERTIES
+                },
+                'other': {
+                    'name': "non-existent template",
+                    'custom_properties': WEB_PROPERTIES
+                },
+            },
+            'phone': {
+                'nhs': {
+                    'name': "non-existent template",
+                    'custom_properties': BOOKING_RESCHEDULING_PROPERTIES
+                },
+                'other': {
+                    'name': "non-existent template",
+                    'custom_properties': BOOKING_RESCHEDULING_PROPERTIES
+                },
+            },
+        },
+        'cancellation': {
+            'web': {
+                'nhs': {
+                    'name': "non-existent template",
+                    'custom_properties': COMMON_PROPERTIES
+                },
+                'other': {
+                    'name': "non-existent template",
+                    'custom_properties': COMMON_PROPERTIES
+                },
+            },
+            'phone': {
+                'nhs': {
+                    'name': "non-existent template",
+                    'custom_properties': COMMON_PROPERTIES
+                },
+                'other': {
+                    'name': "non-existent template",
+                    'custom_properties': COMMON_PROPERTIES
+                },
+            },
+        },
+    },
+    'researcher': {
+        'booking': {
+            'other': {
+                'name': "non-existent template",
+                'custom_properties': [
+                    'interview_url',
+                ]
+            },
+        },
+        'rescheduling': {
+            'other': {
+                'name': "non-existent template",
+                'custom_properties': [
+                    'interview_url',
+                ]
+            },
+        },
+        'cancellation': {
+            'other': {
+                'name': "non-existent template",
+                'custom_properties': [
+                    'interview_url',
+                ]
+            },
+        },
+    },
+}

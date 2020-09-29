@@ -26,6 +26,7 @@ from pprint import pprint
 import src.appointments as app
 import common.utilities as utils
 import tests.testing_utilities as test_utils
+from src.common.constants import TEST_TEMPLATES
 from local.secrets import TESTER_EMAIL_MAP
 
 
@@ -71,6 +72,7 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
             'type_id': cls.test_data['test_appointment_type_id'],
             'has_link': True,
             'send_notifications': True,
+            'templates': TEST_TEMPLATES,
         })
         cls.at1.get_appointment_type_info_from_acuity()
         cls.at1.ddb_dump(update_allowed=True)
@@ -85,6 +87,7 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
             'type_id': cls.test_data['dev_appointment_type_id'],
             'has_link': False,
             'send_notifications': False,
+            'templates': TEST_TEMPLATES,
         })
         cls.at2.get_appointment_type_info_from_acuity()
         cls.at2.ddb_dump(update_allowed=True)
@@ -152,6 +155,7 @@ class SetInterviewUrlTestCase(AppointmentsTestCase):
             'type_id': cls.test_data['test_appointment_no_notif_id'],
             'has_link': True,
             'send_notifications': False,
+            'templates': TEST_TEMPLATES,
         })
         cls.at3.ddb_dump(update_allowed=True)
 
@@ -222,6 +226,7 @@ class TestAppointmentType(AppointmentsTestCase):
     def setUpClass(cls):
         cls.at = app.AppointmentType()
         cls.at.type_id = str(cls.test_data['dev_appointment_type_id'])
+        cls.at.templates = TEST_TEMPLATES
 
     def test_03_get_appointment_type_id_to_info_map_ok(self):
         result = self.at.get_appointment_type_id_to_info_map()
@@ -362,6 +367,7 @@ class TestAcuityEvent(AppointmentsTestCase):
             'type_id': cls.test_data['dev_appointment_no_link_type_id'],
             'has_link': False,
             'send_notifications': True,
+            'templates': TEST_TEMPLATES,
         })
         cls.at4.get_appointment_type_info_from_acuity()
         cls.at4.ddb_dump(update_allowed=True)
