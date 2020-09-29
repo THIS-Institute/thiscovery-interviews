@@ -53,12 +53,12 @@ DEFAULT_TEMPLATES = {  # fallback default templates (to be overwritten if specif
             },
             'phone': {
                 'nhs': {
-                    'name': "interview_booked_phone_participant",
-                    'custom_properties': BOOKING_RESCHEDULING_PROPERTIES
+                    'name': "interview_booked_web_participant",
+                    'custom_properties': WEB_PROPERTIES
                 },
                 'other': {
-                    'name': "interview_booked_phone_participant",
-                    'custom_properties': BOOKING_RESCHEDULING_PROPERTIES
+                    'name': "interview_booked_web_participant",
+                    'custom_properties': WEB_PROPERTIES
                 },
             },
         },
@@ -75,12 +75,12 @@ DEFAULT_TEMPLATES = {  # fallback default templates (to be overwritten if specif
             },
             'phone': {
                 'nhs': {
-                    'name': "interview_rescheduled_phone_participant",
-                    'custom_properties': BOOKING_RESCHEDULING_PROPERTIES
+                    'name': "interview_rescheduled_web_participant",
+                    'custom_properties': WEB_PROPERTIES
                 },
                 'other': {
-                    'name': "interview_rescheduled_phone_participant",
-                    'custom_properties': BOOKING_RESCHEDULING_PROPERTIES
+                    'name': "interview_rescheduled_web_participant",
+                    'custom_properties': WEB_PROPERTIES
                 },
             },
         },
