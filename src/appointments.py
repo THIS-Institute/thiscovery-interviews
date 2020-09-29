@@ -284,8 +284,8 @@ class AppointmentNotifier:
             for t in p['tasks']:
                 if t['id'] == self.appointment.appointment_type.project_task_id:
                     self.project_short_name = p['short_name']
-                    return
-        raise utils.ObjectDoesNotExistError(f'Project task {self.appointment.appointment_type.project_task_id} not found')
+                    return self.project_short_name
+        raise utils.ObjectDoesNotExistError(f'Project task {self.appointment.appointment_type.project_task_id} not found', details={})
 
     def _get_custom_properties(self, properties_list):
         if self.project_short_name is None:

@@ -39,7 +39,7 @@ class CoreApiClient:
         return json.loads(result['body'])['id']
 
     def get_projects(self):
-        result = utils.aws_get('v1/project', self.base_url)
+        result = utils.aws_get('v1/project', self.base_url, params={})
         assert result['statusCode'] == HTTPStatus.OK, f'Call to core API returned error: {result}'
         return json.loads(result['body'])
 

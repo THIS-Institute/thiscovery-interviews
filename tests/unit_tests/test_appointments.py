@@ -49,7 +49,8 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
         'participant_user_id': '8518c7ed-1df4-45e9-8dc4-d49b57ae0663',
         'event_body': "action=appointment.scheduled&id=399682887&calendarID=4038206&appointmentTypeID=14792299",
         'cancelled_appointment_id': 446315771,
-        'interview_url': "https://meet.myinterview.com/1b879c51-2e29-46ae-bd36-3199860e65f2"
+        'interview_url': "https://meet.myinterview.com/1b879c51-2e29-46ae-bd36-3199860e65f2",
+        'project_task_id': '273b420e-09cb-419c-8b57-b393595dba78',
     }
 
     @classmethod
@@ -71,6 +72,7 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
             'has_link': True,
             'send_notifications': True,
             'templates': TEST_TEMPLATES,
+            'project_task_id': cls.test_data['project_task_id'],
         })
         cls.at1.get_appointment_type_info_from_acuity()
         cls.at1.ddb_dump(update_allowed=True)
@@ -523,7 +525,17 @@ class TestAppointmentNotifier(AppointmentsTestCase):
                 logger=cls.logger,
             )
 
-    def test_24_get_email_template_ok(self):
+    def test_24_get_project_short_name_ok(self):
+        self.an.appointment.appointment_type.project_task_id = self.test_data['project_task_id']
+        result = self.an._get_project_short_name()
+        self.assertEqual('PSFU-05-pub-act', result)
+
+    def test_25_get_project_short_name_non_existent_project_task_id(self):
+        self.an.appointment.appointment_type.project_task_id = '598699f3-7aef-4804-88d9-7f9cc68d87c1'
+        with self.assertRaises(utils.ObjectDoesNotExistError):
+            self.an._get_project_short_name()
+
+    def test_26_get_email_template_ok(self):
         templates = [
             ('participant', 'booking', self.test_data['email'], "interview_booked_participant"),
             ('participant', 'booking', 'doctor@nhs.org', "interview_booked_nhs_participant"),
@@ -550,19 +562,19 @@ class TestAppointmentNotifier(AppointmentsTestCase):
             )
             self.assertEqual(template_name, result['name'])
 
-    def test_25_get_researcher_email_address_ok(self):
+    def test_27_get_researcher_email_address_ok(self):
         result = self.an._get_researcher_email_address()
         self.assertEqual(2, len(result))
         self.assertIn("fred@email.co.uk", result)
 
-    def test_26_check_appointment_cancelled_not_cancelled(self):
+    def test_28_check_appointment_cancelled_not_cancelled(self):
         self.assertFalse(self.an._check_appointment_cancelled())
 
-    def test_27_check_appointment_cancelled_appointment_cancelled(self):
+    def test_29_check_appointment_cancelled_appointment_cancelled(self):
         self.load_cancelled_appointment()
         self.assertTrue(self.cancelled_an._check_appointment_cancelled())
 
-    def test_28_send_notifications_aborted_if_appointment_cancelled(self):
+    def test_30_send_notifications_aborted_if_appointment_cancelled(self):
         self.load_cancelled_appointment()
         result = self.cancelled_an.send_notifications(event_type='booking')
         expected_result = {'participant': 'aborted', 'researchers': ['aborted', 'aborted']}
