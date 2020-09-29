@@ -572,8 +572,11 @@ def interview_appointment_api(event, context):
     correlation_id = event['correlation_id']
     acuity_event = event['body']
     appointment_event = AcuityEvent(acuity_event, logger, correlation_id=correlation_id)
-    return appointment_event.process()
-
+    result = appointment_event.process()
+    return {
+        "statusCode": HTTPStatus.OK,
+        'body': json.dumps(result)
+    }
 
 @utils.lambda_wrapper
 @utils.api_error_handler
