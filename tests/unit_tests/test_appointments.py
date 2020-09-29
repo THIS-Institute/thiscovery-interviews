@@ -26,7 +26,7 @@ from pprint import pprint
 import src.appointments as app
 import common.utilities as utils
 import tests.testing_utilities as test_utils
-from src.common.constants import TEST_TEMPLATES
+from src.common.constants import TEST_TEMPLATES, DEFAULT_TEMPLATES
 from local.secrets import TESTER_EMAIL_MAP
 
 
@@ -88,6 +88,7 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
             'has_link': False,
             'send_notifications': False,
             'templates': TEST_TEMPLATES,
+            'project_task_id': cls.test_data['project_task_id'],
         })
         cls.at2.get_appointment_type_info_from_acuity()
         cls.at2.ddb_dump(update_allowed=True)
@@ -156,6 +157,7 @@ class SetInterviewUrlTestCase(AppointmentsTestCase):
             'has_link': True,
             'send_notifications': False,
             'templates': TEST_TEMPLATES,
+            'project_task_id': cls.test_data['project_task_id'],
         })
         cls.at3.ddb_dump(update_allowed=True)
 
@@ -276,8 +278,9 @@ class TestAppointmentType(AppointmentsTestCase):
             'category': 'Tech development',
             'has_link': None,
             'name': 'Development appointment',
+            'project_task_id': None,
             'send_notifications': None,
-            'templates': app.DEFAULT_TEMPLATES,
+            'templates': TEST_TEMPLATES,
             'type_id': '14649911',
         }
         self.assertEqual(expected_result, at.as_dict())
@@ -288,18 +291,20 @@ class TestAppointmentType(AppointmentsTestCase):
         at.from_dict(
             {
                 'has_link': True,
-                'templates': 'test_template'
+                'templates': 'test_template',
+                'project_task_id': self.test_data['project_task_id'],
             }
         )
         expected_result = {
             'category': 'Tech development',
             'has_link': True,
             'name': 'Development appointment',
+            'project_task_id': self.test_data['project_task_id'],
             'send_notifications': None,
             'templates': 'test_template',
             'type_id': '14649911',
         }
-        self.assertEqual(expected_result, at.as_dict())
+        self.assertDictEqual(expected_result, at.as_dict())
 
 
 class TestAcuityAppointment(AppointmentsTestCase):
@@ -368,6 +373,7 @@ class TestAcuityEvent(AppointmentsTestCase):
             'has_link': False,
             'send_notifications': True,
             'templates': TEST_TEMPLATES,
+            'project_task_id': cls.test_data['project_task_id'],
         })
         cls.at4.get_appointment_type_info_from_acuity()
         cls.at4.ddb_dump(update_allowed=True)
@@ -536,26 +542,29 @@ class TestAppointmentNotifier(AppointmentsTestCase):
             self.an._get_project_short_name()
 
     def test_26_get_email_template_ok(self):
+        an = copy.copy(self.an)
+        an.appointment.appointment_type.templates = DEFAULT_TEMPLATES
+        an.appointment.appointment_type.has_link = True
         templates = [
-            ('participant', 'booking', self.test_data['email'], "interview_booked_participant"),
-            ('participant', 'booking', 'doctor@nhs.org', "interview_booked_nhs_participant"),
-            ('participant', 'rescheduling', self.test_data['email'], "interview_rescheduled_participant"),
-            ('participant', 'rescheduling', 'doctor@nhs.org', "interview_rescheduled_nhs_participant"),
+            ('participant', 'booking', self.test_data['email'], "interview_booked_web_participant"),
+            ('participant', 'booking', 'doctor@nhs.org', "interview_booked_web_nhs_participant"),
+            ('participant', 'rescheduling', self.test_data['email'], "interview_rescheduled_web_participant"),
+            ('participant', 'rescheduling', 'doctor@nhs.org', "interview_rescheduled_web_nhs_participant"),
             ('participant', 'cancellation', self.test_data['email'], "interview_cancelled_participant"),
-            ('participant', 'cancellation', 'doctor@nhs.org', "interview_cancelled_nhs_participant"),
+            ('participant', 'cancellation', 'doctor@nhs.org', "interview_cancelled_participant"),
             ('researcher', 'booking', self.test_data['email'], "interview_booked_researcher"),
             ('researcher', 'rescheduling', self.test_data['email'], "interview_rescheduled_researcher"),
             ('researcher', 'cancellation', self.test_data['email'], "interview_cancelled_researcher"),
         ]
         for recipient, event, email, template_name in templates:
-            self.an.participant_email = email
+            an.participant_email = email
             self.logger.debug('Calling _get_email_template', extra={
                 'recipient': recipient,
                 'event': event,
                 'email': email,
                 'template_name': template_name,
             })
-            result = self.an._get_email_template(
+            result = an._get_email_template(
                 recipient_email=email,
                 recipient_type=recipient,
                 event_type=event,

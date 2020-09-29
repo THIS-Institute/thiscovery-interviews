@@ -15,6 +15,9 @@
 #   A copy of the GNU Affero General Public License is available in the
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
+import copy
+
+
 APPOINTMENTS_TABLE = 'Appointments'
 APPOINTMENT_TYPES_TABLE = 'AppointmentTypes'
 
@@ -107,126 +110,78 @@ DEFAULT_TEMPLATES = {  # fallback default templates (to be overwritten if specif
     },
     'researcher': {
         'booking': {
-            'other': {
-                'name': "interview_booked_researcher",
-                'custom_properties': [
-                    'interview_url',
-                ]
+            'web': {
+                'other': {
+                    'name': "interview_booked_researcher",
+                    'custom_properties': [
+                        'interview_url',
+                    ]
+                },
+            },
+            'phone': {
+                'other': {
+                    'name': "interview_booked_researcher",
+                    'custom_properties': [
+                        'interview_url',
+                    ]
+                },
             },
         },
         'rescheduling': {
-            'other': {
-                'name': "interview_rescheduled_researcher",
-                'custom_properties': [
-                    'interview_url',
-                ]
+            'web': {
+                'other': {
+                    'name': "interview_rescheduled_researcher",
+                    'custom_properties': [
+                        'interview_url',
+                    ]
+                },
+            },
+            'phone': {
+                'other': {
+                    'name': "interview_booked_researcher",
+                    'custom_properties': [
+                        'interview_url',
+                    ]
+                },
             },
         },
         'cancellation': {
-            'other': {
-                'name': "interview_cancelled_researcher",
-                'custom_properties': [
-                    'interview_url',
-                ]
+            'web': {
+                'other': {
+                    'name': "interview_cancelled_researcher",
+                    'custom_properties': [
+                        'interview_url',
+                    ]
+                },
+            },
+            'phone': {
+                'other': {
+                    'name': "interview_booked_researcher",
+                    'custom_properties': [
+                        'interview_url',
+                    ]
+                },
             },
         },
     },
 }
 
 
-TEST_TEMPLATES = {  # non-existent templates for unittests
-    'participant': {
-        'booking': {
-            'web': {
-                'nhs': {
-                    'name': "non-existent template",
-                    'custom_properties': WEB_PROPERTIES
-                },
-                'other': {
-                    'name': "non-existent template",
-                    'custom_properties': WEB_PROPERTIES
-                },
-            },
-            'phone': {
-                'nhs': {
-                    'name': "non-existent template",
-                    'custom_properties': BOOKING_RESCHEDULING_PROPERTIES
-                },
-                'other': {
-                    'name': "non-existent template",
-                    'custom_properties': BOOKING_RESCHEDULING_PROPERTIES
-                },
-            },
-        },
-        'rescheduling': {
-            'web': {
-                'nhs': {
-                    'name': "non-existent template",
-                    'custom_properties': WEB_PROPERTIES
-                },
-                'other': {
-                    'name': "non-existent template",
-                    'custom_properties': WEB_PROPERTIES
-                },
-            },
-            'phone': {
-                'nhs': {
-                    'name': "non-existent template",
-                    'custom_properties': BOOKING_RESCHEDULING_PROPERTIES
-                },
-                'other': {
-                    'name': "non-existent template",
-                    'custom_properties': BOOKING_RESCHEDULING_PROPERTIES
-                },
-            },
-        },
-        'cancellation': {
-            'web': {
-                'nhs': {
-                    'name': "non-existent template",
-                    'custom_properties': COMMON_PROPERTIES
-                },
-                'other': {
-                    'name': "non-existent template",
-                    'custom_properties': COMMON_PROPERTIES
-                },
-            },
-            'phone': {
-                'nhs': {
-                    'name': "non-existent template",
-                    'custom_properties': COMMON_PROPERTIES
-                },
-                'other': {
-                    'name': "non-existent template",
-                    'custom_properties': COMMON_PROPERTIES
-                },
-            },
-        },
-    },
-    'researcher': {
-        'booking': {
-            'other': {
-                'name': "non-existent template",
-                'custom_properties': [
-                    'interview_url',
-                ]
-            },
-        },
-        'rescheduling': {
-            'other': {
-                'name': "non-existent template",
-                'custom_properties': [
-                    'interview_url',
-                ]
-            },
-        },
-        'cancellation': {
-            'other': {
-                'name': "non-existent template",
-                'custom_properties': [
-                    'interview_url',
-                ]
-            },
-        },
-    },
-}
+def replace_item(obj, key, replace_value):
+    """
+    From https://stackoverflow.com/a/45335542
+    """
+    for k, v in obj.items():
+        if isinstance(v, dict):
+            obj[k] = replace_item(v, key, replace_value)
+    if key in obj:
+        obj[key] = replace_value
+    return obj
+
+
+TEST_TEMPLATES = replace_item(copy.deepcopy(DEFAULT_TEMPLATES), 'name', 'non-existent')
+
+
+if __name__ == '__main__':
+    from pprint import pprint
+    pprint(TEST_TEMPLATES)
