@@ -22,6 +22,7 @@ def main():
             appointment_type.category = at['category']
             appointment_type.has_link = False
             appointment_type.send_notifications = False
+            appointment_type.project_task_id = None
             appointment_type.ddb_dump()
             print(f"Added appointment type {appointment_type.type_id} ({appointment_type.name}) to Dynamodb.")
         else:
