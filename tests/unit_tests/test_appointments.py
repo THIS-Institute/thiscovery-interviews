@@ -30,8 +30,6 @@ from src.common.constants import TEST_TEMPLATES
 from local.secrets import TESTER_EMAIL_MAP
 
 
-# todo: tests should use non-existent templates to prevent transactional emails from being processed. Implement this.
-
 class AppointmentsTestCase(test_utils.BaseTestCase):
     """
     Base class with data and methods for testing appointments.py
