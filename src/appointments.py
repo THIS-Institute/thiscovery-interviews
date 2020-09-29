@@ -17,133 +17,16 @@
 #
 import json
 import re
+from dateutil import parser
 from http import HTTPStatus
 
 import common.utilities as utils
 from common.acuity_utilities import AcuityClient
+from common.constants import APPOINTMENTS_TABLE, APPOINTMENT_TYPES_TABLE, COMMON_PROPERTIES, \
+    WEB_PROPERTIES, BOOKING_RESCHEDULING_PROPERTIES, DEFAULT_TEMPLATES
 from common.core_api_utilities import CoreApiClient
 from common.dynamodb_utilities import Dynamodb
 from common.emails_api_utilities import EmailsApiClient
-from dateutil import parser
-
-
-APPOINTMENTS_TABLE = 'Appointments'
-APPOINTMENT_TYPES_TABLE = 'AppointmentTypes'
-
-COMMON_PROPERTIES = [
-    'project_short_name',
-    'user_first_name',
-]
-
-BOOKING_RESCHEDULING_PROPERTIES = [
-    *COMMON_PROPERTIES,
-    'appointment_cancel_url',
-    'appointment_date',
-    'appointment_duration',
-    'appointment_reschedule_url',
-]
-
-WEB_PROPERTIES = [
-    *BOOKING_RESCHEDULING_PROPERTIES,
-    'interview_url',
-]
-
-DEFAULT_TEMPLATES = {  # fallback default templates (to be overwritten if specified in Dynamodb table)
-    'participant': {
-        'booking': {
-            'web': {
-                'nhs': {
-                    'name': "interview_booked_web_nhs_participant",
-                    'custom_properties': WEB_PROPERTIES
-                },
-                'other': {
-                    'name': "interview_booked_web_participant",
-                    'custom_properties': WEB_PROPERTIES
-                },
-            },
-            'phone': {
-                'nhs': {
-                    'name': "interview_booked_phone_participant",
-                    'custom_properties': BOOKING_RESCHEDULING_PROPERTIES
-                },
-                'other': {
-                    'name': "interview_booked_phone_participant",
-                    'custom_properties': BOOKING_RESCHEDULING_PROPERTIES
-                },
-            },
-        },
-        'rescheduling': {
-            'web': {
-                'nhs': {
-                    'name': "interview_rescheduled_nhs_participant",
-                    'custom_properties': WEB_PROPERTIES
-                },
-                'other': {
-                    'name': "interview_rescheduled_participant",
-                    'custom_properties': WEB_PROPERTIES
-                },
-            },
-            'phone': {
-                'nhs': {
-                    'name': "interview_rescheduled_participant",
-                    'custom_properties': BOOKING_RESCHEDULING_PROPERTIES
-                },
-                'other': {
-                    'name': "interview_rescheduled_participant",
-                    'custom_properties': BOOKING_RESCHEDULING_PROPERTIES
-                },
-            },
-        },
-        'cancellation': {
-            'web': {
-                'nhs': {
-                    'name': "interview_cancelled_participant",
-                    'custom_properties': COMMON_PROPERTIES
-                },
-                'other': {
-                    'name': "interview_cancelled_participant",
-                    'custom_properties': COMMON_PROPERTIES
-                },
-            },
-            'phone': {
-                'nhs': {
-                    'name': "interview_cancelled_participant",
-                    'custom_properties': COMMON_PROPERTIES
-                },
-                'other': {
-                    'name': "interview_cancelled_participant",
-                    'custom_properties': COMMON_PROPERTIES
-                },
-            },
-        },
-    },
-    'researcher': {
-        'booking': {
-            'other': {
-                'name': "interview_booked_researcher",
-                'custom_properties': [
-                    'interview_url',
-                ]
-            },
-        },
-        'rescheduling': {
-            'other': {
-                'name': "interview_rescheduled_researcher",
-                'custom_properties': [
-                    'interview_url',
-                ]
-            },
-        },
-        'cancellation': {
-            'other': {
-                'name': "interview_cancelled_researcher",
-                'custom_properties': [
-                    'interview_url',
-                ]
-            },
-        },
-    },
-}
 
 
 class AppointmentType:
@@ -158,6 +41,7 @@ class AppointmentType:
         self.send_notifications = None
         self.templates = DEFAULT_TEMPLATES
         self.modified = None  # flag used in ddb_load method to check if ddb data was already fetched
+        self.project_task_id = None
 
         self._logger = logger
         self._correlation_id = correlation_id
@@ -334,6 +218,7 @@ class AppointmentNotifier:
             correlation_id:
         """
         self.appointment = appointment
+        self.project_short_name = None
 
         if self.appointment.participant_email is None:
             self.appointment.get_appointment_info_from_acuity()
@@ -393,10 +278,21 @@ class AppointmentNotifier:
                 return True
         return False
 
+    def _get_project_short_name(self):
+        project_list = self.appointment._core_api_client.get_projects()
+        for p in project_list:
+            for t in p['tasks']:
+                if t['id'] == self.appointment.appointment_type.project_task_id:
+                    self.project_short_name = p['short_name']
+                    return
+        raise utils.ObjectDoesNotExistError(f'Project task {self.appointment.appointment_type.project_task_id} not found')
+
     def _get_custom_properties(self, properties_list):
+        if self.project_short_name is None:
+            self._get_project_short_name()
         if properties_list:
             properties_map = {
-                'project_short_name': None,
+                'project_short_name': self.project_short_name,
                 'user_first_name': self.appointment.acuity_info['firstName'],
                 'appointment_cancel_url': self.appointment.acuity_info['confirmationPage'],
                 'appointment_date': f"{parser.parse(self.appointment.acuity_info['datetime']).strftime('%H:%M on %A %d %B %Y')}",
