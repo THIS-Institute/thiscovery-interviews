@@ -294,12 +294,13 @@ class AppointmentNotifier:
             properties_map = {
                 'project_short_name': self.project_short_name,
                 'user_first_name': self.appointment.acuity_info['firstName'],
-                'appointment_cancel_url': self.appointment.acuity_info['confirmationPage'],
                 'appointment_date': f"{parser.parse(self.appointment.acuity_info['datetime']).strftime('%H:%M on %A %d %B %Y')}",
                 'appointment_duration': self.appointment.acuity_info['duration'],
                 'appointment_reschedule_url': self.appointment.acuity_info['confirmationPage'],
-                'interview_url': self.appointment.link,
+                'interview_url': 'We will call you on the phone number provided.',
             }
+            if self.appointment.appointment_type.has_link is True:
+                properties_map['interview_url'] = f'<a href="{self.appointment.link}" rel="noopener">{self.appointment.link}</a>'
             try:
                 return {k: properties_map[k] for k in properties_list}
             except KeyError:

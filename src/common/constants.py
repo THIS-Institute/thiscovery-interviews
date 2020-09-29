@@ -28,7 +28,6 @@ COMMON_PROPERTIES = [
 
 BOOKING_RESCHEDULING_PROPERTIES = [
     *COMMON_PROPERTIES,
-    'appointment_cancel_url',
     'appointment_date',
     'appointment_duration',
     'appointment_reschedule_url',
