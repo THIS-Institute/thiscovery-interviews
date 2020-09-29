@@ -567,7 +567,7 @@ def interview_appointment_api(event, context):
 
 
 @utils.lambda_wrapper
-# @utils.api_error_handler
+@utils.api_error_handler
 def set_interview_url_api(event, context):
     logger = event['logger']
     correlation_id = event['correlation_id']
