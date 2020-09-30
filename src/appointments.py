@@ -308,7 +308,7 @@ class AppointmentNotifier:
                 'interview_url': 'We will call you on the phone number provided.',
             }
             if self.appointment.appointment_type.has_link is True:
-                properties_map['interview_url'] = f'<a href="{self.appointment.link}" rel="noopener">{self.appointment.link}</a>'
+                properties_map['interview_url'] = f'<a href="{self.appointment.link}" style="color:#dd0031" rel="noopener">{self.appointment.link}</a>'
             try:
                 return {k: properties_map[k] for k in properties_list}
             except KeyError:
