@@ -476,6 +476,8 @@ class AcuityEvent:
         return storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results
 
     def _process_cancellation(self):
+        original_booking_info = self.appointment.get_appointment_item_from_ddb()
+        self.appointment.link = original_booking_info['link']
         storing_result = self.appointment.ddb_dump(update_allowed=True)
         thiscovery_team_notification_result = None
         participant_and_researchers_notification_results = self._notify_participant_and_researchers(event_type='cancellation')
