@@ -305,7 +305,7 @@ class AppointmentNotifier:
                 'appointment_date': f"{parser.parse(self.appointment.acuity_info['datetime']).strftime('%A %d %B %Y at %H:%M')}",
                 'appointment_duration': f"{self.appointment.acuity_info['duration']} minutes",
                 'appointment_reschedule_url': self.appointment.acuity_info['confirmationPage'],
-                'interview_url': 'We will call you on the phone number provided.',
+                'interview_url': 'We will call you on the phone number provided',
             }
             if self.appointment.appointment_type.has_link is True:
                 properties_map['interview_url'] = f'<a href="{self.appointment.link}" style="color:#dd0031" rel="noopener">{self.appointment.link}</a>'
