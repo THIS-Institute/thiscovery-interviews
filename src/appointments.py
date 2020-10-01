@@ -343,30 +343,27 @@ class AppointmentNotifier:
                 'appointment_date': f"{parser.parse(self.appointment.acuity_info['datetime']).strftime('%A %d %B %Y at %H:%M')}",
                 'appointment_duration': f"{self.appointment.acuity_info['duration']} minutes",
                 'appointment_reschedule_url': self.appointment.acuity_info['confirmationPage'],
+                'interview_url': 'We will call you on the phone number provided',
                 'project_short_name': self.project_short_name,
                 'user_email': self.appointment.participant_email,
                 'user_first_name': self.appointment.acuity_info['firstName'],
                 'user_last_name': self.appointment.acuity_info['lastName'],
             }
-            if template_type == 'participant':
+            if self.appointment.appointment_type.has_link is True:
+                properties_map['interview_url'] = f'<a href="{self.appointment.link}" style="color:#dd0031" ' \
+                                                  f'rel="noopener">{self.appointment.link}</a>'
+
+            if template_type == 'researcher':
                 if self.appointment.appointment_type.has_link is True:
-                    interview_url = f'<a href="{self.appointment.link}" style="color:#dd0031" ' \
-                                                      f'rel="noopener">{self.appointment.link}</a>'
-                else:
-                    interview_url = 'We will call you on the phone number provided'
-            elif template_type == 'researcher':
-                if self.appointment.appointment_type.has_link is True:
-                    interview_url = self._get_interviewer_myinterview_link()
+                    interviewer_url = self._get_interviewer_myinterview_link()
                 else:
                     if self.appointment.acuity_info['phone']:
-                        interview_url = f"Please call participant on {self.appointment.acuity_info['phone']}"
+                        interviewer_url = f"Please call participant on {self.appointment.acuity_info['phone']}"
                     else:
-                        interview_url = f"Participant did not provide a phone number. " \
+                        interviewer_url = f"Participant did not provide a phone number. " \
                                                           f"Please contact them by email to obtain a contact number"
-            else:
-                raise NotImplementedError(f'Template type not supported: {template_type}')
+                properties_map['interviewer_url'] = interviewer_url
 
-            properties_map['interview_url'] = interview_url
             try:
                 return {k: properties_map[k] for k in properties_list}
             except KeyError:
