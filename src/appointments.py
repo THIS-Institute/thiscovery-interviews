@@ -173,9 +173,6 @@ class AcuityAppointment:
         )
 
     def get_participant_user_id(self):
-        """
-        Not currently used, but might be useful in the near future.
-        """
         if self.participant_user_id is None:
             if self.participant_email is None:
                 self.get_appointment_info_from_acuity()
@@ -218,7 +215,10 @@ class AppointmentNotifier:
             correlation_id:
         """
         self.appointment = appointment
+        self.project_id = None
         self.project_short_name = None
+        self.anon_project_specific_user_id = None
+        self.interviewer_calendar_ddb_item = None
 
         if self.appointment.participant_email is None:
             self.appointment.get_appointment_info_from_acuity()
@@ -240,16 +240,14 @@ class AppointmentNotifier:
             interview_medium = 'web'
         return self.appointment.appointment_type.templates[recipient_type][event_type][interview_medium][email_domain]
 
-    def _get_researcher_email_address(self):
+    def _get_calendar_ddb_item(self):
         if self.appointment.calendar_id is None:
             self.appointment.get_appointment_info_from_acuity()
-        calendar_item = self.ddb_client.get_item(
+        self.interviewer_calendar_ddb_item = self.ddb_client.get_item(
             table_name=self.calendar_table,
             key=self.appointment.calendar_id
         )
-        try:
-            return calendar_item['emails_to_notify']
-        except TypeError:
+        if not self.interviewer_calendar_ddb_item:
             raise utils.ObjectDoesNotExistError(
                 f'Calendar {self.appointment.calendar_id} not found in Dynamodb',
                 details={
@@ -257,6 +255,27 @@ class AppointmentNotifier:
                     'correlation_id': self.correlation_id,
                 }
             )
+        return self.interviewer_calendar_ddb_item
+
+    def _get_interviewer_myinterview_link(self):
+        if self.interviewer_calendar_ddb_item is None:
+            self._get_calendar_ddb_item()
+        try:
+            return self.interviewer_calendar_ddb_item['myinterview_link']
+        except KeyError:
+            raise utils.ObjectDoesNotExistError(
+                f'Calendar {self.appointment.calendar_id} Dynamodb item does not contain a myinterview_link column',
+                details={
+                    'appointment': self.appointment,
+                    'correlation_id': self.correlation_id,
+                }
+            )
+
+    def _get_researcher_email_address(self):
+        if self.interviewer_calendar_ddb_item is None:
+            self._get_calendar_ddb_item()
+        try:
+            return self.interviewer_calendar_ddb_item['emails_to_notify']
         except KeyError:
             raise utils.ObjectDoesNotExistError(
                 f'Calendar {self.appointment.calendar_id} Dynamodb item does not contain an emails_to_notify column',
@@ -291,24 +310,60 @@ class AppointmentNotifier:
         for p in project_list:
             for t in p['tasks']:
                 if t['id'] == self.appointment.appointment_type.project_task_id:
+                    self.project_id = p['id']
                     self.project_short_name = p['short_name']
                     return self.project_short_name
         raise utils.ObjectDoesNotExistError(f'Project task {self.appointment.appointment_type.project_task_id} not found', details={})
 
-    def _get_custom_properties(self, properties_list):
-        if self.project_short_name is None:
+    def _get_anon_project_specific_user_id(self):
+        if self.appointment.participant_user_id is None:
+            self.appointment.get_participant_user_id()
+        user_projects = self.appointment._core_api_client.get_userprojects(self.appointment.participant_user_id)
+        if self.project_id is None:
             self._get_project_short_name()
+        for up in user_projects:
+            if up['project_id'] == self.project_id:
+                self.anon_project_specific_user_id = up['anon_project_specific_user_id']
+                return self.anon_project_specific_user_id
+        self.logger.info(f'anon_project_specific_user_id could not be found for {self.appointment.participant_email}', extra={
+            'appointment': self.appointment,
+            'correlation_id': self.correlation_id
+        })
+
+    def _get_custom_properties(self, properties_list, template_type):
         if properties_list:
+            if ('project_short_name' in properties_list) and (self.project_short_name is None):
+                self._get_project_short_name()
+            if (template_type == 'researcher') and (self.anon_project_specific_user_id is None):
+                self._get_anon_project_specific_user_id()
             properties_map = {
-                'project_short_name': self.project_short_name,
-                'user_first_name': self.appointment.acuity_info['firstName'],
+                'anon_project_specific_user_id': self.anon_project_specific_user_id,
                 'appointment_date': f"{parser.parse(self.appointment.acuity_info['datetime']).strftime('%A %d %B %Y at %H:%M')}",
                 'appointment_duration': f"{self.appointment.acuity_info['duration']} minutes",
                 'appointment_reschedule_url': self.appointment.acuity_info['confirmationPage'],
-                'interview_url': 'We will call you on the phone number provided',
+                'project_short_name': self.project_short_name,
+                'user_first_name': self.appointment.acuity_info['firstName'],
+                'user_last_name': self.appointment.acuity_info['lastName'],
             }
-            if self.appointment.appointment_type.has_link is True:
-                properties_map['interview_url'] = f'<a href="{self.appointment.link}" style="color:#dd0031" rel="noopener">{self.appointment.link}</a>'
+            if template_type == 'participant':
+                if self.appointment.appointment_type.has_link is True:
+                    interview_url = f'<a href="{self.appointment.link}" style="color:#dd0031" ' \
+                                                      f'rel="noopener">{self.appointment.link}</a>'
+                else:
+                    interview_url = 'We will call you on the phone number provided'
+            elif template_type == 'researcher':
+                if self.appointment.appointment_type.has_link is True:
+                    interview_url = self._get_interviewer_myinterview_link()
+                else:
+                    if self.appointment.acuity_info['phone']:
+                        interview_url = f"Please call participant on {self.appointment.acuity_info['phone']}"
+                    else:
+                        interview_url = f"Participant did not provide a phone number. " \
+                                                          f"Please contact them by email to obtain a contact number"
+            else:
+                raise NotImplementedError(f'Template type not supported: {template_type}')
+
+            properties_map['interview_url'] = interview_url
             try:
                 return {k: properties_map[k] for k in properties_list}
             except KeyError:
@@ -327,7 +382,10 @@ class AppointmentNotifier:
         return self.appointment._core_api_client.send_transactional_email(
             template_name=template['name'],
             to_recipient_email=recipient_email,
-            custom_properties=self._get_custom_properties(template['custom_properties'])
+            custom_properties=self._get_custom_properties(
+                properties_list=template['custom_properties'],
+                template_type=recipient_type,
+            )
         )
 
     def _notify_participant(self, event_type):
