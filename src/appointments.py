@@ -22,8 +22,7 @@ from http import HTTPStatus
 
 import common.utilities as utils
 from common.acuity_utilities import AcuityClient
-from common.constants import APPOINTMENTS_TABLE, APPOINTMENT_TYPES_TABLE, COMMON_PROPERTIES, \
-    WEB_PROPERTIES, BOOKING_RESCHEDULING_PROPERTIES, DEFAULT_TEMPLATES
+from common.constants import APPOINTMENTS_TABLE, APPOINTMENT_TYPES_TABLE, DEFAULT_TEMPLATES
 from common.core_api_utilities import CoreApiClient
 from common.dynamodb_utilities import Dynamodb
 from common.emails_api_utilities import EmailsApiClient
@@ -39,7 +38,7 @@ class AppointmentType:
         self.category = None
         self.has_link = None
         self.send_notifications = None
-        self.templates = DEFAULT_TEMPLATES
+        self.templates = None
         self.modified = None  # flag used in ddb_load method to check if ddb data was already fetched
         self.project_task_id = None
 
@@ -238,7 +237,10 @@ class AppointmentNotifier:
         interview_medium = 'phone'
         if self.appointment.appointment_type.has_link is True:
             interview_medium = 'web'
-        return self.appointment.appointment_type.templates[recipient_type][event_type][interview_medium][email_domain]
+        templates = self.appointment.appointment_type.templates  # todo: probably better to use ChainMap here instead
+        if not templates:
+            templates = DEFAULT_TEMPLATES
+        return templates[recipient_type][event_type][interview_medium][email_domain]
 
     def _get_calendar_ddb_item(self):
         if self.appointment.calendar_id is None:
