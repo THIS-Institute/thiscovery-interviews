@@ -302,8 +302,8 @@ class AppointmentNotifier:
             properties_map = {
                 'project_short_name': self.project_short_name,
                 'user_first_name': self.appointment.acuity_info['firstName'],
-                'appointment_date': f"{parser.parse(self.appointment.acuity_info['datetime']).strftime('%H:%M on %A %d %B %Y')}",
-                'appointment_duration': self.appointment.acuity_info['duration'],
+                'appointment_date': f"{parser.parse(self.appointment.acuity_info['datetime']).strftime('%A %d %B %Y at %H:%M')}",
+                'appointment_duration': f"{self.appointment.acuity_info['duration']} minutes",
                 'appointment_reschedule_url': self.appointment.acuity_info['confirmationPage'],
                 'interview_url': 'We will call you on the phone number provided.',
             }
