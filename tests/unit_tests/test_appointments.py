@@ -458,8 +458,9 @@ class TestAcuityEvent(AppointmentsTestCase):
         self.clear_appointments_table()
 
     def test_21_process_cancellation_ok(self):
+        self.aa1.ddb_dump()  # simulates original booking
         event_body = f"action=appointment.canceled" \
-                     f"&id=399682887&calendarID=4038206" \
+                     f"&id={self.test_data['test_appointment_id']}&calendarID=4038206" \
                      f"&appointmentTypeID={self.test_data['test_appointment_type_id']}"
         ae = app.AcuityEvent(acuity_event=event_body, logger=self.logger)
         (
@@ -473,6 +474,7 @@ class TestAcuityEvent(AppointmentsTestCase):
         self.assertEqual(HTTPStatus.NO_CONTENT, participant_result)
         researchers_result = participant_and_researchers_notification_results.get('researchers')
         self.assertEqual([HTTPStatus.NO_CONTENT] * 2, researchers_result)
+        self.clear_appointments_table()
 
     def test_22_process_rescheduling_same_calendar_ok(self):
         self.aa1.ddb_dump(update_allowed=True)  # store original appointment in ddb
@@ -515,6 +517,7 @@ class TestAppointmentNotifier(AppointmentsTestCase):
             logger=cls.logger,
             ddb_client=cls.aa1._ddb_client,
         )
+        cls.an.appointment.appointment_type.ddb_load()
         cls.cancelled_aa = None
         cls.cancelled_an = None
 
@@ -588,3 +591,17 @@ class TestAppointmentNotifier(AppointmentsTestCase):
         result = self.cancelled_an.send_notifications(event_type='booking')
         expected_result = {'participant': 'aborted', 'researchers': ['aborted', 'aborted']}
         self.assertEqual(expected_result, result)
+
+    def test_31_get_calendar_ddb_item_non_existent(self):
+        an = copy.copy(self.an)
+        an.appointment.calendar_id = '123456789'
+        with self.assertRaises(utils.ObjectDoesNotExistError):
+            an._get_calendar_ddb_item()
+
+    def test_32_get_interviewer_myinterview_link_ok(self):
+        result = self.an._get_interviewer_myinterview_link()
+        self.assertEqual('https://meet.myinterview.com/5f64ccbd-b2e3-44e9-aed2-53c55cca4ef5', result)
+
+    def test_33_get_anon_project_specific_user_id_ok(self):
+        result = self.an._get_anon_project_specific_user_id()
+        self.assertEqual('64cdc867-e53d-40c9-adda-f0271bcf1063', result)

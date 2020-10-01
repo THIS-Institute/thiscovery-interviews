@@ -38,6 +38,22 @@ WEB_PROPERTIES = [
     'interview_url',
 ]
 
+INTERVIEWER_CANCELLATION = [
+    'appointment_date',
+    'appointment_duration',
+    'interview_url',
+    'user_first_name',
+    'user_last_name',
+    'user_email',
+    'anon_project_specific_user_id',
+]
+
+INTERVIEWER_BOOKING_RESCHEDULING = [
+    *INTERVIEWER_CANCELLATION,
+    'project_short_name',
+]
+
+
 DEFAULT_TEMPLATES = {  # fallback default templates (to be overwritten if specified in Dynamodb table)
     'participant': {
         'booking': {
@@ -112,17 +128,13 @@ DEFAULT_TEMPLATES = {  # fallback default templates (to be overwritten if specif
             'web': {
                 'other': {
                     'name': "interview_booked_researcher",
-                    'custom_properties': [
-                        'interview_url',
-                    ]
+                    'custom_properties': INTERVIEWER_BOOKING_RESCHEDULING
                 },
             },
             'phone': {
                 'other': {
                     'name': "interview_booked_researcher",
-                    'custom_properties': [
-                        'interview_url',
-                    ]
+                    'custom_properties': INTERVIEWER_BOOKING_RESCHEDULING
                 },
             },
         },
@@ -130,17 +142,13 @@ DEFAULT_TEMPLATES = {  # fallback default templates (to be overwritten if specif
             'web': {
                 'other': {
                     'name': "interview_rescheduled_researcher",
-                    'custom_properties': [
-                        'interview_url',
-                    ]
+                    'custom_properties': INTERVIEWER_BOOKING_RESCHEDULING
                 },
             },
             'phone': {
                 'other': {
-                    'name': "interview_booked_researcher",
-                    'custom_properties': [
-                        'interview_url',
-                    ]
+                    'name': "interview_rescheduled_researcher",
+                    'custom_properties': INTERVIEWER_BOOKING_RESCHEDULING
                 },
             },
         },
@@ -148,17 +156,13 @@ DEFAULT_TEMPLATES = {  # fallback default templates (to be overwritten if specif
             'web': {
                 'other': {
                     'name': "interview_cancelled_researcher",
-                    'custom_properties': [
-                        'interview_url',
-                    ]
+                    'custom_properties': INTERVIEWER_CANCELLATION
                 },
             },
             'phone': {
                 'other': {
-                    'name': "interview_booked_researcher",
-                    'custom_properties': [
-                        'interview_url',
-                    ]
+                    'name': "interview_cancelled_researcher",
+                    'custom_properties': INTERVIEWER_CANCELLATION
                 },
             },
         },
@@ -183,4 +187,4 @@ TEST_TEMPLATES = replace_item(copy.deepcopy(DEFAULT_TEMPLATES), 'name', 'non-exi
 
 if __name__ == '__main__':
     from pprint import pprint
-    pprint(TEST_TEMPLATES)
+    pprint(INTERVIEWER_CANCELLATION)

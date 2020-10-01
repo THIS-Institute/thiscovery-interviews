@@ -342,6 +342,7 @@ class AppointmentNotifier:
                 'appointment_duration': f"{self.appointment.acuity_info['duration']} minutes",
                 'appointment_reschedule_url': self.appointment.acuity_info['confirmationPage'],
                 'project_short_name': self.project_short_name,
+                'user_email': self.appointment.participant_email,
                 'user_first_name': self.appointment.acuity_info['firstName'],
                 'user_last_name': self.appointment.acuity_info['lastName'],
             }
