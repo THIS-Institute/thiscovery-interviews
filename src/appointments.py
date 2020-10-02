@@ -333,6 +333,10 @@ class AppointmentNotifier:
         })
 
     def _get_custom_properties(self, properties_list, template_type):
+        self.logger.debug('Properties list and template type', extra={
+            'properties_list': properties_list,
+            'template_type': template_type,
+        })
         if properties_list:
             if ('project_short_name' in properties_list) and (self.project_short_name is None):
                 self._get_project_short_name()

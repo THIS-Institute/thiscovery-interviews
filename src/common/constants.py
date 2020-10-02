@@ -41,7 +41,7 @@ WEB_PROPERTIES = [
 INTERVIEWER_CANCELLATION = [
     'appointment_date',
     'appointment_duration',
-    'interview_url',
+    'interviewer_url',
     'user_first_name',
     'user_last_name',
     'user_email',

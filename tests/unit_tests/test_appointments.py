@@ -26,7 +26,7 @@ from pprint import pprint
 import src.appointments as app
 import common.utilities as utils
 import tests.testing_utilities as test_utils
-from src.common.constants import TEST_TEMPLATES, DEFAULT_TEMPLATES
+from src.common.constants import TEST_TEMPLATES, DEFAULT_TEMPLATES, INTERVIEWER_BOOKING_RESCHEDULING
 from local.secrets import TESTER_EMAIL_MAP
 
 
@@ -605,3 +605,22 @@ class TestAppointmentNotifier(AppointmentsTestCase):
     def test_33_get_anon_project_specific_user_id_ok(self):
         result = self.an._get_anon_project_specific_user_id()
         self.assertEqual('64cdc867-e53d-40c9-adda-f0271bcf1063', result)
+
+    def test_34_get_custom_properties_researcher_booking_ok(self):
+        result = self.an._get_custom_properties(
+            properties_list=INTERVIEWER_BOOKING_RESCHEDULING,
+            template_type='researcher',
+        )
+        self.assertDictEqual(
+            {
+                'anon_project_specific_user_id': '64cdc867-e53d-40c9-adda-f0271bcf1063',
+                'appointment_date': 'Tuesday 30 June 2020 at 10:15',
+                'appointment_duration': '30 minutes',
+                'interviewer_url': 'https://meet.myinterview.com/5f64ccbd-b2e3-44e9-aed2-53c55cca4ef5',
+                'project_short_name': 'PSFU-05-pub-act',
+                'user_email': 'clive@email.co.uk',
+                'user_first_name': 'Clive',
+                'user_last_name': 'Cresswell'
+            },
+            result
+        )
