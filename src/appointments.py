@@ -328,7 +328,15 @@ class AppointmentNotifier:
                                      'correlation_id': self.correlation_id,
                                  })
                 return None
-        user_projects = self.appointment._core_api_client.get_userprojects(self.appointment.participant_user_id)
+        try:
+            user_projects = self.appointment._core_api_client.get_userprojects(self.appointment.participant_user_id)
+        except AssertionError:
+            self.logger.info(f'Could not get user projects for user_id {self.appointment.participant_user_id}',
+                             extra={
+                                 'appointment': self.appointment,
+                                 'correlation_id': self.correlation_id,
+                             })
+            return None
         if self.project_id is None:
             self._get_project_short_name()
         for up in user_projects:
