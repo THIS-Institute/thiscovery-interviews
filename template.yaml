@@ -156,7 +156,7 @@ Resources:
       Handler: appointments.interview_appointment_api
       Runtime: python3.7
       MemorySize: !Ref EnvConfiglambdamemorysizeAsString
-      Timeout: 10
+      Timeout: 20
       Tracing: Active
       Policies:
         - AWSXrayWriteOnlyAccess
@@ -243,7 +243,7 @@ Resources:
       Handler: appointments.set_interview_url_api
       Runtime: python3.7
       MemorySize: !Ref EnvConfiglambdamemorysizeAsString
-      Timeout: !Ref EnvConfiglambdatimeoutAsString
+      Timeout: 20
       Tracing: Active
       Policies:
         - AWSXrayWriteOnlyAccess
