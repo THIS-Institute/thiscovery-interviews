@@ -606,6 +606,12 @@ class TestAppointmentNotifier(AppointmentsTestCase):
         result = self.an._get_anon_project_specific_user_id()
         self.assertEqual('64cdc867-e53d-40c9-adda-f0271bcf1063', result)
 
+    def test_33_get_anon_project_specific_user_id_user_not_found(self):
+        an = copy.copy(self.an)
+        an.appointment.participant_email = 'bob@email.com'
+        result = self.an._get_anon_project_specific_user_id()
+        self.assertIsNone(result)
+
     def test_34_get_custom_properties_researcher_booking_ok(self):
         result = self.an._get_custom_properties(
             properties_list=INTERVIEWER_BOOKING_RESCHEDULING,

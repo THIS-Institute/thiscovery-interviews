@@ -319,7 +319,15 @@ class AppointmentNotifier:
 
     def _get_anon_project_specific_user_id(self):
         if self.appointment.participant_user_id is None:
-            self.appointment.get_participant_user_id()
+            try:
+                self.appointment.get_participant_user_id()
+            except AssertionError:
+                self.logger.info(f'User {self.appointment.participant_email} does not seem to have a thiscovery account',
+                                 extra={
+                                     'appointment': self.appointment,
+                                     'correlation_id': self.correlation_id,
+                                 })
+                return None
         user_projects = self.appointment._core_api_client.get_userprojects(self.appointment.participant_user_id)
         if self.project_id is None:
             self._get_project_short_name()
