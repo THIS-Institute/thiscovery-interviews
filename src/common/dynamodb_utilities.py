@@ -178,11 +178,14 @@ class Dynamodb(utils.BaseClient):
         self.logger.info('dynamodb delete', extra={'table_name': table_name, 'key': key, 'correlation_id': correlation_id})
         return table.delete_item(Key=key_json)
 
-    def delete_all(self, table_name: str, correlation_id=None):
+    def delete_all(self, table_name: str, table_name_verbatim=False, correlation_id=None):
         if correlation_id is None:
             correlation_id = utils.new_correlation_id()
-        table = self.get_table(table_name)
-        items = self.scan(table_name)
+        if table_name_verbatim:
+            table = self.client.Table(table_name)
+        else:
+            table = self.get_table(table_name)
+        items = self.scan(table_name, table_name_verbatim=table_name_verbatim)
         for item in items:
             key = item['id']
             key_json = {'id': key}
