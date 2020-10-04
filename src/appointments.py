@@ -442,10 +442,18 @@ class AppointmentNotifier:
 
     def send_notifications(self, event_type):
         participant_result = self._notify_participant(event_type=event_type)
-        researchers_results = self._notify_researchers(event_type=event_type)
+        researchers_results = None
+        try:
+            researchers_notifications_results = self._notify_researchers(event_type=event_type)
+            researchers_results = [r['statusCode'] for r in researchers_notifications_results]
+        except:
+            self.logger.error('Failed to notify researchers', extra={
+                'appointment': self.appointment,
+                'correlation_id': self.correlation_id,
+            })
         return {
             'participant': participant_result.get('statusCode'),
-            'researchers': [r['statusCode'] for r in researchers_results],
+            'researchers': researchers_results,
         }
 
 

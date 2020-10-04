@@ -591,9 +591,14 @@ class TestAppointmentNotifier(AppointmentsTestCase):
         self.assertEqual('64cdc867-e53d-40c9-adda-f0271bcf1063', result)
 
     def test_33_get_anon_project_specific_user_id_user_not_found(self):
-        an = copy.copy(self.an)
+        ap = app.AcuityAppointment(
+            appointment_id=self.test_data['test_appointment_id'],
+        )
+        an = app.AppointmentNotifier(
+            appointment=ap
+        )
         an.appointment.participant_email = 'bob@email.com'
-        result = self.an._get_anon_project_specific_user_id()
+        result = an._get_anon_project_specific_user_id()
         self.assertIsNone(result)
 
     def test_34_get_custom_properties_researcher_booking_ok(self):
