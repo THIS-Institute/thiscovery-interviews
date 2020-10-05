@@ -120,6 +120,8 @@ class AcuityAppointment:
         self.participant_email = None
         self.participant_user_id = None
         self.appointment_type = AppointmentType()
+        self.latest_participant_notification = None
+        self.latest_reminder = None
 
         self._logger = logger
         if self._logger is None:
@@ -191,6 +193,32 @@ class AcuityAppointment:
             key=self.appointment_id,
             name_value_pairs={
                 'link': self.link
+            }
+        )
+        assert result['ResponseMetadata']['HTTPStatusCode'] == HTTPStatus.OK, \
+            f'Call to ddb client update_item method failed with response {result}'
+        return result['ResponseMetadata']['HTTPStatusCode']
+
+    def update_latest_participant_notification(self):
+        self.latest_participant_notification = str(utils.now_with_tz())
+        result = self._ddb_client.update_item(
+            table_name=APPOINTMENTS_TABLE,
+            key=self.appointment_id,
+            name_value_pairs={
+                'latest_participant_notification': self.latest_participant_notification
+            }
+        )
+        assert result['ResponseMetadata']['HTTPStatusCode'] == HTTPStatus.OK, \
+            f'Call to ddb client update_item method failed with response {result}'
+        return result['ResponseMetadata']['HTTPStatusCode']
+
+    def update_latest_reminder(self):
+        self.latest_reminder = str(utils.now_with_tz())
+        result = self._ddb_client.update_item(
+            table_name=APPOINTMENTS_TABLE,
+            key=self.appointment_id,
+            name_value_pairs={
+                'latest_reminder': self.latest_reminder
             }
         )
         assert result['ResponseMetadata']['HTTPStatusCode'] == HTTPStatus.OK, \
@@ -343,6 +371,8 @@ class AppointmentNotifier:
                 'appointment': self.appointment,
                 'correlation_id': self.correlation_id
             })
+        else:
+            self.appointment.update_latest_participant_notification()
         return result
 
     def _notify_researchers(self, event_type):
@@ -475,17 +505,22 @@ class AcuityEvent:
             participant_and_researchers_notification_results = self._notify_participant_and_researchers(event_type='booking')
         return storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results
 
-    def _process_cancellation(self):
+    def _get_original_booking(self):
         original_booking_info = self.appointment.get_appointment_item_from_ddb()
         self.appointment.link = original_booking_info['link']
+        self.appointment.latest_participant_notification = original_booking_info['latest_participant_notification']
+        self.appointment.latest_reminder = original_booking_info['latest_reminder']
+        return original_booking_info
+
+    def _process_cancellation(self):
+        self._get_original_booking()
         storing_result = self.appointment.ddb_dump(update_allowed=True)
         thiscovery_team_notification_result = None
         participant_and_researchers_notification_results = self._notify_participant_and_researchers(event_type='cancellation')
         return storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results
 
     def _process_rescheduling(self):
-        original_booking_info = self.appointment.get_appointment_item_from_ddb()
-        self.appointment.link = original_booking_info['link']
+        original_booking_info = self._get_original_booking()
         storing_result = self.appointment.ddb_dump(update_allowed=True)
         thiscovery_team_notification_result = None
         participant_and_researchers_notification_results = None
@@ -550,23 +585,6 @@ def set_interview_url(appointment_id, interview_url, event_type, logger=None, co
     return update_result, notification_results
 
 
-def send_reminder():
-    ddb_client = Dynamodb()
-    ddb_client.scan(
-        table_name=APPOINTMENTS_TABLE,
-        filter_attr_name='reminder',
-        filter_attr_values=[None]
-    )
-
-
-@utils.lambda_wrapper
-def interview_reminder_handler(event, context):
-    """
-    To be implemented
-    """
-    raise NotImplementedError
-
-
 @utils.lambda_wrapper
 @utils.api_error_handler
 def interview_appointment_api(event, context):
@@ -579,6 +597,7 @@ def interview_appointment_api(event, context):
         "statusCode": HTTPStatus.OK,
         'body': json.dumps(result)
     }
+
 
 @utils.lambda_wrapper
 @utils.api_error_handler
