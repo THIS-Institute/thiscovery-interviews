@@ -445,6 +445,7 @@ class AppointmentNotifier:
         return results
 
     def send_notifications(self, event_type):
+        # todo: split this into two functions when EventBridge is in place
         participant_result = self._notify_participant(event_type=event_type)
         researchers_results = None
         try:
