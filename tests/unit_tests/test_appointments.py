@@ -26,32 +26,16 @@ from pprint import pprint
 import src.appointments as app
 import common.utilities as utils
 import tests.testing_utilities as test_utils
-from src.common.constants import TEST_TEMPLATES, DEFAULT_TEMPLATES
+from src.common.constants import TEST_TEMPLATES, DEFAULT_TEMPLATES, INTERVIEWER_BOOKING_RESCHEDULING
 from local.secrets import TESTER_EMAIL_MAP
+from tests.test_data import td
 
 
 class AppointmentsTestCase(test_utils.BaseTestCase):
     """
     Base class with data and methods for testing appointments.py
     """
-    test_data = {
-        'test_appointment_id': 399682887,
-        'dev_appointment_id': 448161724,
-        'test_appointment_no_notif_id': 448161419,
-
-        'test_appointment_type_id': 14792299,
-        'dev_appointment_type_id': 14649911,
-        'test_appointment_no_notif_type_id': 17268193,
-        'dev_appointment_no_link_type_id': 17271544,
-
-        'calendar_name': 'André',
-        'email': 'clive@email.co.uk',
-        'participant_user_id': '8518c7ed-1df4-45e9-8dc4-d49b57ae0663',
-        'event_body': "action=appointment.scheduled&id=399682887&calendarID=4038206&appointmentTypeID=14792299",
-        'cancelled_appointment_id': 446315771,
-        'interview_url': "https://meet.myinterview.com/1b879c51-2e29-46ae-bd36-3199860e65f2",
-        'project_task_id': '273b420e-09cb-419c-8b57-b393595dba78',
-    }
+    test_data = td
 
     @classmethod
     def setUpClass(cls):
@@ -71,7 +55,6 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
             'type_id': cls.test_data['test_appointment_type_id'],
             'has_link': True,
             'send_notifications': True,
-            'templates': TEST_TEMPLATES,
             'project_task_id': cls.test_data['project_task_id'],
         })
         cls.at1.get_appointment_type_info_from_acuity()
@@ -87,7 +70,6 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
             'type_id': cls.test_data['dev_appointment_type_id'],
             'has_link': False,
             'send_notifications': False,
-            'templates': TEST_TEMPLATES,
             'project_task_id': cls.test_data['project_task_id'],
         })
         cls.at2.get_appointment_type_info_from_acuity()
@@ -156,7 +138,6 @@ class SetInterviewUrlTestCase(AppointmentsTestCase):
             'type_id': cls.test_data['test_appointment_no_notif_id'],
             'has_link': True,
             'send_notifications': False,
-            'templates': TEST_TEMPLATES,
             'project_task_id': cls.test_data['project_task_id'],
         })
         cls.at3.ddb_dump(update_allowed=True)
@@ -228,7 +209,6 @@ class TestAppointmentType(AppointmentsTestCase):
     def setUpClass(cls):
         cls.at = app.AppointmentType()
         cls.at.type_id = str(cls.test_data['dev_appointment_type_id'])
-        cls.at.templates = TEST_TEMPLATES
 
     def test_03_get_appointment_type_id_to_info_map_ok(self):
         result = self.at.get_appointment_type_id_to_info_map()
@@ -280,7 +260,7 @@ class TestAppointmentType(AppointmentsTestCase):
             'name': 'Development appointment',
             'project_task_id': None,
             'send_notifications': None,
-            'templates': TEST_TEMPLATES,
+            'templates': None,
             'type_id': '14649911',
         }
         self.assertEqual(expected_result, at.as_dict())
@@ -372,7 +352,6 @@ class TestAcuityEvent(AppointmentsTestCase):
             'type_id': cls.test_data['dev_appointment_no_link_type_id'],
             'has_link': False,
             'send_notifications': True,
-            'templates': TEST_TEMPLATES,
             'project_task_id': cls.test_data['project_task_id'],
         })
         cls.at4.get_appointment_type_info_from_acuity()
@@ -458,8 +437,9 @@ class TestAcuityEvent(AppointmentsTestCase):
         self.clear_appointments_table()
 
     def test_21_process_cancellation_ok(self):
+        self.aa1.ddb_dump()  # simulates original booking
         event_body = f"action=appointment.canceled" \
-                     f"&id=399682887&calendarID=4038206" \
+                     f"&id={self.test_data['test_appointment_id']}&calendarID=4038206" \
                      f"&appointmentTypeID={self.test_data['test_appointment_type_id']}"
         ae = app.AcuityEvent(acuity_event=event_body, logger=self.logger)
         (
@@ -473,6 +453,7 @@ class TestAcuityEvent(AppointmentsTestCase):
         self.assertEqual(HTTPStatus.NO_CONTENT, participant_result)
         researchers_result = participant_and_researchers_notification_results.get('researchers')
         self.assertEqual([HTTPStatus.NO_CONTENT] * 2, researchers_result)
+        self.clear_appointments_table()
 
     def test_22_process_rescheduling_same_calendar_ok(self):
         self.aa1.ddb_dump(update_allowed=True)  # store original appointment in ddb
@@ -515,6 +496,7 @@ class TestAppointmentNotifier(AppointmentsTestCase):
             logger=cls.logger,
             ddb_client=cls.aa1._ddb_client,
         )
+        cls.an.appointment.appointment_type.ddb_load()
         cls.cancelled_aa = None
         cls.cancelled_an = None
 
@@ -588,3 +570,50 @@ class TestAppointmentNotifier(AppointmentsTestCase):
         result = self.cancelled_an.send_notifications(event_type='booking')
         expected_result = {'participant': 'aborted', 'researchers': ['aborted', 'aborted']}
         self.assertEqual(expected_result, result)
+
+    def test_31_get_calendar_ddb_item_non_existent(self):
+        an = copy.copy(self.an)
+        an.appointment.calendar_id = '123456789'
+        with self.assertRaises(utils.ObjectDoesNotExistError):
+            an._get_calendar_ddb_item()
+
+    def test_32_get_interviewer_myinterview_link_ok(self):
+        result = self.an._get_interviewer_myinterview_link()
+        self.assertEqual('https://meet.myinterview.com/5f64ccbd-b2e3-44e9-aed2-53c55cca4ef5', result)
+
+    def test_33_get_anon_project_specific_user_id_ok(self):
+        result = self.an._get_anon_project_specific_user_id()
+        self.assertEqual('64cdc867-e53d-40c9-adda-f0271bcf1063', result)
+
+    def test_33_get_anon_project_specific_user_id_user_not_found(self):
+        ap = app.AcuityAppointment(
+            appointment_id=self.test_data['test_appointment_id'],
+        )
+        an = app.AppointmentNotifier(
+            appointment=ap
+        )
+        an.appointment.participant_email = 'bob@email.com'
+        result = an._get_anon_project_specific_user_id()
+        self.assertIsNone(result)
+
+    def test_34_get_custom_properties_researcher_booking_ok(self):
+        result = self.an._get_custom_properties(
+            properties_list=INTERVIEWER_BOOKING_RESCHEDULING,
+            template_type='researcher',
+        )
+        self.assertDictEqual(
+            {
+                'anon_project_specific_user_id': '64cdc867-e53d-40c9-adda-f0271bcf1063',
+                'appointment_date': 'Tuesday 30 June 2020 at 10:15',
+                'appointment_duration': '30 minutes',
+                'appointment_time': '10:15',
+                'appointment_type_name': 'Test appointment',
+                'interviewer_first_name': 'André',
+                'interviewer_url': 'https://meet.myinterview.com/5f64ccbd-b2e3-44e9-aed2-53c55cca4ef5',
+                'project_short_name': 'PSFU-05-pub-act',
+                'user_email': 'clive@email.co.uk',
+                'user_first_name': 'Clive',
+                'user_last_name': 'Cresswell'
+            },
+            result
+        )
