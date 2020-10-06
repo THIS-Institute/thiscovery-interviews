@@ -361,7 +361,7 @@ class AppointmentNotifier:
             appointment_datetime = parser.parse(self.appointment.acuity_info['datetime'])
             properties_map = {
                 'anon_project_specific_user_id': self.anon_project_specific_user_id,
-                'appointment_date': f"{appointment_datetime.strftime('%A %d %B %Y at %H:%M')}",  # todo: update this once live template is changed
+                'appointment_date': f"{appointment_datetime.strftime('%A %d %B %Y')}",
                 'appointment_duration': f"{self.appointment.acuity_info['duration']} minutes",
                 'appointment_reschedule_url': self.appointment.acuity_info['confirmationPage'],
                 'appointment_time': f"{appointment_datetime.strftime('%H:%M')}",
