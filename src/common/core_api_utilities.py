@@ -62,7 +62,7 @@ class CoreApiClient:
 
     def send_transactional_email(self, template_name, **kwargs):
         """
-        Calls the send-transactional-email endpoint. Sets template_name to 'non-existent'
+        Calls the send-transactional-email endpoint. Appends 'NA_' to template_name
         if running_unit_tests() returns True to prevent unittest emails being sent
 
         Args:
@@ -76,7 +76,7 @@ class CoreApiClient:
             **kwargs
         }
         if utils.running_unit_tests():
-            email_dict['template_name'] = 'non-existent'
+            email_dict['template_name'] = f'NA_{template_name}'
         self.logger.debug("Transactional email API call", extra={'email_dict': email_dict})
         result = utils.aws_post('v1/send-transactional-email', self.base_url, request_body=json.dumps(email_dict))
         assert result['statusCode'] == HTTPStatus.NO_CONTENT, f'Call to core API returned error: {result}'

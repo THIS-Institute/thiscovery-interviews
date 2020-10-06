@@ -55,7 +55,6 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
             'type_id': cls.test_data['test_appointment_type_id'],
             'has_link': True,
             'send_notifications': True,
-            'templates': TEST_TEMPLATES,
             'project_task_id': cls.test_data['project_task_id'],
         })
         cls.at1.get_appointment_type_info_from_acuity()
@@ -71,7 +70,6 @@ class AppointmentsTestCase(test_utils.BaseTestCase):
             'type_id': cls.test_data['dev_appointment_type_id'],
             'has_link': False,
             'send_notifications': False,
-            'templates': TEST_TEMPLATES,
             'project_task_id': cls.test_data['project_task_id'],
         })
         cls.at2.get_appointment_type_info_from_acuity()
@@ -140,7 +138,6 @@ class SetInterviewUrlTestCase(AppointmentsTestCase):
             'type_id': cls.test_data['test_appointment_no_notif_id'],
             'has_link': True,
             'send_notifications': False,
-            'templates': TEST_TEMPLATES,
             'project_task_id': cls.test_data['project_task_id'],
         })
         cls.at3.ddb_dump(update_allowed=True)
@@ -212,7 +209,6 @@ class TestAppointmentType(AppointmentsTestCase):
     def setUpClass(cls):
         cls.at = app.AppointmentType()
         cls.at.type_id = str(cls.test_data['dev_appointment_type_id'])
-        cls.at.templates = TEST_TEMPLATES
 
     def test_03_get_appointment_type_id_to_info_map_ok(self):
         result = self.at.get_appointment_type_id_to_info_map()
@@ -264,7 +260,7 @@ class TestAppointmentType(AppointmentsTestCase):
             'name': 'Development appointment',
             'project_task_id': None,
             'send_notifications': None,
-            'templates': TEST_TEMPLATES,
+            'templates': None,
             'type_id': '14649911',
         }
         self.assertEqual(expected_result, at.as_dict())
@@ -356,7 +352,6 @@ class TestAcuityEvent(AppointmentsTestCase):
             'type_id': cls.test_data['dev_appointment_no_link_type_id'],
             'has_link': False,
             'send_notifications': True,
-            'templates': TEST_TEMPLATES,
             'project_task_id': cls.test_data['project_task_id'],
         })
         cls.at4.get_appointment_type_info_from_acuity()
@@ -611,6 +606,9 @@ class TestAppointmentNotifier(AppointmentsTestCase):
                 'anon_project_specific_user_id': '64cdc867-e53d-40c9-adda-f0271bcf1063',
                 'appointment_date': 'Tuesday 30 June 2020 at 10:15',
                 'appointment_duration': '30 minutes',
+                'appointment_time': '10:15',
+                'appointment_type_name': 'Test appointment',
+                'interviewer_first_name': 'André',
                 'interviewer_url': 'https://meet.myinterview.com/5f64ccbd-b2e3-44e9-aed2-53c55cca4ef5',
                 'project_short_name': 'PSFU-05-pub-act',
                 'user_email': 'clive@email.co.uk',

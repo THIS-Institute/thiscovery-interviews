@@ -31,6 +31,8 @@ BOOKING_RESCHEDULING_PROPERTIES = [
     'appointment_date',
     'appointment_duration',
     'appointment_reschedule_url',
+    'appointment_time',
+    'interviewer_first_name',
 ]
 
 WEB_PROPERTIES = [
@@ -41,6 +43,9 @@ WEB_PROPERTIES = [
 INTERVIEWER_CANCELLATION = [
     'appointment_date',
     'appointment_duration',
+    'appointment_time',
+    'appointment_type_name',
+    'interviewer_first_name',
     'interviewer_url',
     'user_first_name',
     'user_last_name',
