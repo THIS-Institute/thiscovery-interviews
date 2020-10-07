@@ -30,6 +30,11 @@ from common.emails_api_utilities import EmailsApiClient
 
 
 class RemindersHandler:
+    """
+    Send a reminder:
+        - One day before an appointment (appointment_datetime)
+        - Unless an email (notification or reminder) was already sent today (latest_email_datetime)
+    """
 
     def __init__(self):
         self.ddb_client = Dynamodb()

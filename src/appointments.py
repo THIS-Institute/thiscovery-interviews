@@ -119,8 +119,8 @@ class AcuityAppointment:
         self.participant_email = None
         self.participant_user_id = None
         self.appointment_type = AppointmentType()
-        self.latest_participant_notification = None
-        self.latest_reminder = None
+        self.latest_participant_notification = '0000-00-00 00:00:00+00:00'  # used as GSI sort key, so cannot be None
+        self.appointment_datetime = None
 
         self._logger = logger
         if self._logger is None:
@@ -208,19 +208,6 @@ class AcuityAppointment:
             f'Call to ddb client update_item method failed with response {result}'
         return result['ResponseMetadata']['HTTPStatusCode']
 
-    def update_latest_reminder(self):
-        self.latest_reminder = str(utils.now_with_tz())
-        result = self._ddb_client.update_item(
-            table_name=APPOINTMENTS_TABLE,
-            key=self.appointment_id,
-            name_value_pairs={
-                'latest_reminder': self.latest_reminder
-            }
-        )
-        assert result['ResponseMetadata']['HTTPStatusCode'] == HTTPStatus.OK, \
-            f'Call to ddb client update_item method failed with response {result}'
-        return result['ResponseMetadata']['HTTPStatusCode']
-
     def get_appointment_info_from_acuity(self, force_refresh=False):
         if (self.acuity_info is None) or (force_refresh is True):
             self.acuity_info = self._acuity_client.get_appointment_by_id(self.appointment_id)
@@ -228,6 +215,7 @@ class AcuityAppointment:
             self.calendar_name = self.acuity_info['calendar']
             self.calendar_id = str(self.acuity_info['calendarID'])
             self.participant_email = self.acuity_info['email']
+            self.appointment_datetime = self.acuity_info['datetime']
         return self.acuity_info
 
 
@@ -281,7 +269,7 @@ class AppointmentNotifier:
             raise utils.ObjectDoesNotExistError(
                 f'Calendar {self.appointment.calendar_id} not found in Dynamodb',
                 details={
-                    'appointment': self.appointment,
+                    'appointment': self.appointment.as_dict(),
                     'correlation_id': self.correlation_id,
                 }
             )
@@ -296,7 +284,7 @@ class AppointmentNotifier:
             raise utils.ObjectDoesNotExistError(
                 f'Calendar {self.appointment.calendar_id} Dynamodb item does not contain a myinterview_link column',
                 details={
-                    'appointment': self.appointment,
+                    'appointment': self.appointment.as_dict(),
                     'correlation_id': self.correlation_id,
                 }
             )
@@ -310,7 +298,7 @@ class AppointmentNotifier:
             raise utils.ObjectDoesNotExistError(
                 f'Calendar {self.appointment.calendar_id} Dynamodb item does not contain an emails_to_notify column',
                 details={
-                    'appointment': self.appointment,
+                    'appointment': self.appointment.as_dict(),
                     'correlation_id': self.correlation_id,
                 }
             )
@@ -329,7 +317,7 @@ class AppointmentNotifier:
         if not event_type == 'cancellation':
             if self._check_appointment_cancelled():
                 self.logger.info('Notification aborted; appointment has been cancelled', extra={
-                    'appointment': self.appointment,
+                    'appointment': self.appointment.as_dict(),
                     'correlation_id': self.correlation_id
                 })
                 return True
@@ -352,7 +340,7 @@ class AppointmentNotifier:
             except AssertionError:
                 self.logger.info(f'User {self.appointment.participant_email} does not seem to have a thiscovery account',
                                  extra={
-                                     'appointment': self.appointment,
+                                     'appointment': self.appointment.as_dict(),
                                      'correlation_id': self.correlation_id,
                                  })
                 return None
@@ -361,7 +349,7 @@ class AppointmentNotifier:
         except AssertionError:
             self.logger.info(f'Could not get user projects for user_id {self.appointment.participant_user_id}',
                              extra={
-                                 'appointment': self.appointment,
+                                 'appointment': self.appointment.as_dict(),
                                  'correlation_id': self.correlation_id,
                              })
             return None
@@ -372,7 +360,7 @@ class AppointmentNotifier:
                 self.anon_project_specific_user_id = up['anon_project_specific_user_id']
                 return self.anon_project_specific_user_id
         self.logger.info(f'anon_project_specific_user_id could not be found for {self.appointment.participant_email}', extra={
-            'appointment': self.appointment,
+            'appointment': self.appointment.as_dict(),
             'correlation_id': self.correlation_id
         })
 
@@ -450,7 +438,7 @@ class AppointmentNotifier:
         )
         if result['statusCode'] != HTTPStatus.NO_CONTENT:
             self.logger.error(f'Failed to notify {self.appointment.participant_email} of new interview appointment', extra={
-                'appointment': self.appointment,
+                'appointment': self.appointment.as_dict(),
                 'correlation_id': self.correlation_id
             })
         else:
@@ -470,7 +458,9 @@ class AppointmentNotifier:
                 event_type=event_type
             )
             if r['statusCode'] != HTTPStatus.NO_CONTENT:
-                self.logger.error(f'Failed to notify {researcher_email} of new interview appointment', extra={'appointment': self.appointment})
+                self.logger.error(f'Failed to notify {researcher_email} of new interview appointment', extra={
+                    'appointment': self.appointment.as_dict()
+                })
             results.append(r)
         return results
 
@@ -483,7 +473,7 @@ class AppointmentNotifier:
             researchers_results = [r['statusCode'] for r in researchers_notifications_results]
         except:
             self.logger.error('Failed to notify researchers', extra={
-                'appointment': self.appointment,
+                'appointment': self.appointment.as_dict(),
                 'correlation_id': self.correlation_id,
             })
         return {
@@ -600,7 +590,6 @@ class AcuityEvent:
         original_booking_info = self.appointment.get_appointment_item_from_ddb()
         self.appointment.link = original_booking_info['link']
         self.appointment.latest_participant_notification = original_booking_info['latest_participant_notification']
-        self.appointment.latest_reminder = original_booking_info['latest_reminder']
         return original_booking_info
 
     def _process_cancellation(self):

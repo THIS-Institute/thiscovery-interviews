@@ -201,6 +201,13 @@ Resources:
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
       TableName: !Sub ${AWS::StackName}-Appointments
+      GlobalSecondaryIndexes:
+        - IndexName: reminders-index
+          KeySchema:
+            - AttributeName: appointment_datetime
+              KeyType: HASH
+            - AttributeName: latest_participant_notification
+                KeyType: RANGE
   SendAppointmentReminder:
     Type: AWS::Serverless::Function
     Properties:
