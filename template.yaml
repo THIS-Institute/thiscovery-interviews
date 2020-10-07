@@ -207,7 +207,7 @@ Resources:
             - AttributeName: appointment_datetime
               KeyType: HASH
             - AttributeName: latest_participant_notification
-                KeyType: RANGE
+              KeyType: RANGE
   SendAppointmentReminder:
     Type: AWS::Serverless::Function
     Properties:
