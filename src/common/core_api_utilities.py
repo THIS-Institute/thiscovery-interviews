@@ -43,6 +43,11 @@ class CoreApiClient:
         assert result['statusCode'] == HTTPStatus.OK, f'Call to core API returned error: {result}'
         return json.loads(result['body'])
 
+    def get_userprojects(self, user_id):
+        result = utils.aws_get('v1/userproject', self.base_url, params={'user_id': user_id})
+        assert result['statusCode'] == HTTPStatus.OK, f'Call to core API returned error: {result}'
+        return json.loads(result['body'])
+
     def get_user_task_id_for_project(self, user_id, project_task_id):
         result = utils.aws_get('v1/usertask', self.base_url, params={'user_id': user_id})
         assert result['statusCode'] == HTTPStatus.OK, f'Call to core API returned error: {result}'
@@ -56,10 +61,22 @@ class CoreApiClient:
         return result
 
     def send_transactional_email(self, template_name, **kwargs):
+        """
+        Calls the send-transactional-email endpoint. Appends 'NA_' to template_name
+        if running_unit_tests() returns True to prevent unittest emails being sent
+
+        Args:
+            template_name:
+            **kwargs:
+
+        Returns:
+        """
         email_dict = {
             "template_name": template_name,
             **kwargs
         }
+        if utils.running_unit_tests():
+            email_dict['template_name'] = f'NA_{template_name}'
         self.logger.debug("Transactional email API call", extra={'email_dict': email_dict})
         result = utils.aws_post('v1/send-transactional-email', self.base_url, request_body=json.dumps(email_dict))
         assert result['statusCode'] == HTTPStatus.NO_CONTENT, f'Call to core API returned error: {result}'
