@@ -194,6 +194,10 @@ Resources:
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
+        - AttributeName: appointment_datetime
+          AttributeType: S
+        - AttributeName: latest_participant_notification
+          AttributeType: S
       BillingMode: PAY_PER_REQUEST
       KeySchema:
         - AttributeName: id
