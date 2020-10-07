@@ -208,6 +208,8 @@ Resources:
               KeyType: HASH
             - AttributeName: latest_participant_notification
               KeyType: RANGE
+          Projection:
+            ProjectionType: KEYS_ONLY
   SendAppointmentReminder:
     Type: AWS::Serverless::Function
     Properties:
