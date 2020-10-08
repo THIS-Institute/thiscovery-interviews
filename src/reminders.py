@@ -40,8 +40,8 @@ class RemindersHandler:
         self.ddb_client = Dynamodb()
 
 
-    def get_tomorrow_appointments(self):
-        self.ddb_client.scan(
+    def get_appointments_to_be_reminded(self):
+        self.ddb_client.query(
             table_name=APPOINTMENTS_TABLE,
             filter_attr_name='reminder',
             filter_attr_values=[None]
