@@ -17,6 +17,7 @@
 #
 import json
 import re
+from collections import ChainMap
 from dateutil import parser
 from http import HTTPStatus
 
@@ -253,9 +254,10 @@ class AppointmentNotifier:
         interview_medium = 'phone'
         if self.appointment.appointment_type.has_link is True:
             interview_medium = 'web'
-        templates = self.appointment.appointment_type.templates  # todo: probably better to use ChainMap here instead
-        if not templates:
-            templates = DEFAULT_TEMPLATES
+
+        templates = DEFAULT_TEMPLATES
+        if isinstance(self.appointment.appointment_type.templates, dict):
+            templates = ChainMap(self.appointment.appointment_type.templates, DEFAULT_TEMPLATES)
         return templates[recipient_type][event_type][interview_medium][email_domain]
 
     def _get_calendar_ddb_item(self):
@@ -437,8 +439,9 @@ class AppointmentNotifier:
             event_type=event_type
         )
         if result['statusCode'] != HTTPStatus.NO_CONTENT:
-            self.logger.error(f'Failed to notify {self.appointment.participant_email} of new interview appointment', extra={
+            self.logger.error(f'Failed to notify {self.appointment.participant_email} of interview appointment', extra={
                 'appointment': self.appointment.as_dict(),
+                'event_type': event_type,
                 'correlation_id': self.correlation_id
             })
         else:
@@ -480,6 +483,9 @@ class AppointmentNotifier:
             'participant': participant_result.get('statusCode'),
             'researchers': researchers_results,
         }
+
+    def send_reminder(self):
+        self._notify_participant(event_type='reminder')
 
 
 class AcuityEvent:
