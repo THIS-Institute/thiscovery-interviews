@@ -206,7 +206,7 @@ Resources:
         StreamViewType: NEW_AND_OLD_IMAGES
       TableName: !Sub ${AWS::StackName}-Appointments
       GlobalSecondaryIndexes:
-        - IndexName: reminders-index
+        - IndexName: reminders-index-v1
           KeySchema:
             - AttributeName: appointment_date
               KeyType: HASH
