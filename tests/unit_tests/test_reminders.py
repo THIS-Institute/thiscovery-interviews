@@ -1,0 +1,155 @@
+#
+#   Thiscovery API - THIS Institute’s citizen science platform
+#   Copyright (C) 2019 THIS Institute
+#
+#   This program is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU Affero General Public License as
+#   published by the Free Software Foundation, either version 3 of the
+#   License, or (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU Affero General Public License for more details.
+#
+#   A copy of the GNU Affero General Public License is available in the
+#   docs folder of this project.  It is also available www.gnu.org/licenses/
+#
+import copy
+import datetime
+
+from http import HTTPStatus
+from pprint import pprint
+
+import src.appointments as app
+import src.reminders as rem
+
+import common.utilities as utils
+import tests.test_data as test_data
+import tests.testing_utilities as test_utils
+from src.common.dynamodb_utilities import Dynamodb
+
+
+TEST_DATETIME_1 = datetime.datetime(
+    year=2020,
+    month=9,
+    day=27,
+    hour=13,
+    minute=40,
+    second=45,
+)
+
+TEST_DATETIME_2 = datetime.datetime(
+    year=2020,
+    month=10,
+    day=1,
+    hour=13,
+    minute=40,
+    second=45,
+)
+
+
+class RemindersTestCase(test_utils.BaseTestCase, test_utils.DdbMixin):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.rh = rem.RemindersHandler(
+            logger=cls.logger
+        )
+        cls.populate_appointments_table()
+
+    @classmethod
+    def populate_appointments_table(cls, fast_mode=True):
+        """
+        Args:
+            fast_mode: if True, uses ddb batch_writer to quickly populate the appointments table but items
+                will not contain created, modified and type fields added by Dynamodb.put_item
+        """
+        if fast_mode:
+            ddb_client = Dynamodb()
+            app_table = ddb_client.get_table(table_name=app.APPOINTMENTS_TABLE)
+            with app_table.batch_writer() as batch:
+                for appointment in test_data.appointments.values():
+                    appointment['id'] = appointment['appointment_id']
+                    batch.put_item(appointment)
+        else:
+            for appointment_dict in test_data.appointments.values():
+                appointment = app.AcuityAppointment(appointment_dict["appointment_id"])
+                appointment.from_dict(appointment_dict)
+                at = app.AppointmentType()
+                at.from_dict(appointment.appointment_type)
+                appointment.appointment_type = at
+                try:
+                    appointment.ddb_dump()
+                except utils.DetailedValueError:
+                    cls.logger.debug('PutItem failed, which probably '
+                                     'means Appointment table already contains '
+                                     'the required test data; aborting this methid', extra={})
+                    break
+
+    def test_01_get_appointments_to_be_reminded_ok(self):
+        result = self.rh.get_appointments_to_be_reminded(now=TEST_DATETIME_1)
+        expected_result = ['448161724']
+        self.assertEqual(expected_result, result)
+        pprint(self.rh.target_appointment_ids)
+
+    def test_02_get_appointments_to_be_reminded_excludes_appointments_that_have_just_been_notified(self):
+        result = self.rh.get_appointments_to_be_reminded(now=TEST_DATETIME_2)
+        expected_result = list()
+        self.assertEqual(expected_result, result)
+
+    def test_03_send_reminders_ok(self):
+        self.clear_notifications_table()
+        rh = copy.copy(self.rh)
+        rh.target_appointment_ids = rh.get_appointments_to_be_reminded(now=TEST_DATETIME_1)
+        result = rh.send_reminders()
+        self.assertEqual([HTTPStatus.NO_CONTENT], result)
+
+        # check notification
+        notifications = self.ddb_client.scan(
+            table_name=self.notifications_table,
+            table_name_verbatim=True,
+        )
+        self.assertEqual(1, len(notifications))
+        attributes_to_ignore = [
+            'created',
+            'id',
+            'modified',
+            'processing_error_message',
+            'processing_fail_count',
+            'processing_status',
+        ]
+        for n in notifications:
+            for a in attributes_to_ignore:
+                del n[a]
+        expected_notifications = [{
+            'details': {
+                'custom_properties': {
+                    'appointment_date': 'Monday 28 September 2020',
+                    'appointment_duration': '30 minutes',
+                    'appointment_reschedule_url': 'https://app.acuityscheduling.com/schedule.php?owner=19499339&action=appt&id%5B%5D=ab81fa72b0d0c1dead5057103c292bd3',
+                    'appointment_time': '13:00',
+                    'interview_url': 'We will call you on the phone number provided',
+                    'interviewer_first_name': 'André',
+                    'project_short_name': 'PSFU-05-pub-act',
+                    'user_first_name': 'Altha'
+                },
+                'template_name': 'NA_interview_reminder_web_participant',
+                'to_recipient_email': 'altha@email.co.uk'
+            },
+            'label': 'NA_interview_reminder_web_participant_altha@email.co.uk',
+            'type': 'transactional-email'
+        }]
+        self.assertCountEqual(expected_notifications, notifications)
+
+    def test_04_send_reminders_no_appointments_to_remind(self):
+        rh = copy.copy(self.rh)
+        rh.target_appointment_ids = rh.get_appointments_to_be_reminded(now=TEST_DATETIME_2)
+        result = rh.send_reminders()
+        self.assertEqual(list(), result)
+        self.clear_notifications_table()
+        notifications = self.ddb_client.scan(
+            table_name=self.notifications_table,
+            table_name_verbatim=True,
+        )
+        self.assertEqual(list(), notifications)

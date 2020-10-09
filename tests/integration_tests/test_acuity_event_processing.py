@@ -15,24 +15,17 @@
 #   A copy of the GNU Affero General Public License is available in the
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
-import copy
-import datetime
 import json
-import unittest
 
 from http import HTTPStatus
-from pprint import pprint
 
 import src.appointments as app
-import common.utilities as utils
 import tests.testing_utilities as test_utils
-from src.common.constants import TEST_TEMPLATES, DEFAULT_TEMPLATES, INTERVIEWER_BOOKING_RESCHEDULING
-from src.common.dynamodb_utilities import Dynamodb
 from local.secrets import TESTER_EMAIL_MAP
 from tests.test_data import td
 
 
-class TestAcuityEventProcessing(test_utils.BaseTestCase):
+class TestAcuityEventProcessing(test_utils.BaseTestCase, test_utils.DdbMixin):
     maxDiff = None
     """
     - no notifications created if appointment type has send_notifications == False
@@ -41,20 +34,11 @@ class TestAcuityEventProcessing(test_utils.BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.env_name = utils.get_environment_name()
-        cls.notifications_table = f"thiscovery-core-{cls.env_name}-notifications"
-        cls.ddb_client = Dynamodb()
+        cls.set_notifications_table()
         cls.clear_appointments_table()
-
-    @classmethod
-    def clear_appointments_table(cls):
-        cls.ddb_client.delete_all(
-            table_name=app.APPOINTMENTS_TABLE,
-        )
 
     def setUp(self):
         self.ddb_client.delete_all(table_name=self.notifications_table, table_name_verbatim=True)
-        pass
 
     def common_routine(self, appointment_id, calendar_id, appointment_type_id):
         event_body = f"action=appointment.scheduled" \

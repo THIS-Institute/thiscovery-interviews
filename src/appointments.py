@@ -134,6 +134,10 @@ class AcuityAppointment:
     def __repr__(self):
         return str(self.__dict__)
 
+    def from_dict(self, appointment_dict):
+        """Used to quickly load appointments into Dynamodb for testing"""
+        self.__dict__.update(appointment_dict)
+
     def as_dict(self):
         d = {k: v for k, v in self.__dict__.items() if (k[0] != "_") and (k not in ['created', 'modified', 'appointment_type'])}
         d['appointment_type'] = self.appointment_type.as_dict()
@@ -485,7 +489,7 @@ class AppointmentNotifier:
         }
 
     def send_reminder(self):
-        self._notify_participant(event_type='reminder')
+        return self._notify_participant(event_type='reminder')
 
 
 class AcuityEvent:

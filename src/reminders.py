@@ -16,20 +16,12 @@
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
 import datetime
-import json
-import re
-import sys
-from dateutil import parser
-from http import HTTPStatus
+import traceback
 
 import common.utilities as utils
 from appointments import AcuityAppointment, AppointmentNotifier
-from common.acuity_utilities import AcuityClient
-from common.constants import APPOINTMENTS_TABLE, APPOINTMENT_TYPES_TABLE, COMMON_PROPERTIES, \
-    WEB_PROPERTIES, BOOKING_RESCHEDULING_PROPERTIES, DEFAULT_TEMPLATES
-from common.core_api_utilities import CoreApiClient
+from common.constants import APPOINTMENTS_TABLE
 from common.dynamodb_utilities import Dynamodb
-from common.emails_api_utilities import EmailsApiClient
 
 
 class RemindersHandler:
@@ -47,13 +39,14 @@ class RemindersHandler:
         if logger is None:
             self.logger = utils.get_logger()
 
-    def get_appointments_to_be_reminded(self):
+    def get_appointments_to_be_reminded(self, now=None):
+        if now is None:
+            now = utils.now_with_tz()
         date_format = '%Y-%m-%d'
-        now = utils.now_with_tz()
         tomorrow = now + datetime.timedelta(days=1)
         today_string = now.strftime(date_format)
-        tomorrow_string = tomorrow(date_format)
-        return self.ddb_client.query(
+        tomorrow_string = tomorrow.strftime(date_format)
+        result = self.ddb_client.query(
             table_name=APPOINTMENTS_TABLE,
             IndexName="reminders-index",
             KeyConditionExpression='appointment_date = :date '
@@ -61,10 +54,11 @@ class RemindersHandler:
                                    'BETWEEN :t1 AND :t2',
             ExpressionAttributeValues={
                 ':date': tomorrow_string,
-                ':t1': '0000-00-00',
+                ':t1': '2020-00-00',  # excludes 0000-00-00 appointments only because those will not have received the initial booking notification yet
                 ':t2': today_string,
             }
         )
+        return [x['id'] for x in result]
 
     def send_reminders(self):
         results = list()
@@ -74,18 +68,19 @@ class RemindersHandler:
                 logger=self.logger,
                 correlation_id=self.correlation_id
             )
+            appointment.ddb_load()
             notifier = AppointmentNotifier(
                 appointment=appointment,
                 logger=self.logger,
                 correlation_id=self.correlation_id
             )
             try:
-                reminder_result = notifier.send_reminder()
+                reminder_result = notifier.send_reminder().get('statusCode')
             except Exception:
-                self.logger.error('AppointmentNotifier.send_reminder raised an exception', details={
+                self.logger.error('AppointmentNotifier.send_reminder raised an exception', extra={
                     'appointment': appointment.as_dict(),
-                    'exc_info': f'{sys.exc_info()}',
                     'correlation_id': self.correlation_id,
+                    'traceback': traceback.format_exc(),
                 })
                 reminder_result = None
             results.append(reminder_result)
