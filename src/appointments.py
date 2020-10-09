@@ -599,7 +599,7 @@ class AcuityEvent:
     def _get_original_booking(self):
         original_booking_info = self.appointment.get_appointment_item_from_ddb()
         self.appointment.link = original_booking_info['link']
-        self.appointment.latest_participant_notification = original_booking_info['latest_participant_notification']
+        self.appointment.latest_participant_notification = original_booking_info.get('latest_participant_notification', '0000-00-00 00:00:00+00:00')
         return original_booking_info
 
     def _process_cancellation(self):
