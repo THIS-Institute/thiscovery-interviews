@@ -17,7 +17,9 @@
 #
 import copy
 import datetime
+import time
 
+from dateutil import parser
 from http import HTTPStatus
 from pprint import pprint
 
@@ -91,7 +93,6 @@ class RemindersTestCase(test_utils.BaseTestCase, test_utils.DdbMixin):
         result = self.rh.get_appointments_to_be_reminded(now=TEST_DATETIME_1)
         expected_result = ['448161724']
         self.assertEqual(expected_result, result)
-        pprint(self.rh.target_appointment_ids)
 
     def test_02_get_appointments_to_be_reminded_excludes_appointments_that_have_just_been_notified(self):
         result = self.rh.get_appointments_to_be_reminded(now=TEST_DATETIME_2)
@@ -100,10 +101,14 @@ class RemindersTestCase(test_utils.BaseTestCase, test_utils.DdbMixin):
 
     def test_03_send_reminders_ok(self):
         self.clear_notifications_table()
-        rh = copy.copy(self.rh)
+        rh = rem.RemindersHandler(logger=self.logger)
         rh.target_appointment_ids = rh.get_appointments_to_be_reminded(now=TEST_DATETIME_1)
+        now = utils.now_with_tz()
         result = rh.send_reminders()
-        self.assertEqual([HTTPStatus.NO_CONTENT], result)
+        expected_result = [
+            (HTTPStatus.NO_CONTENT, '448161724')
+        ]
+        self.assertEqual(expected_result, result)
 
         # check notification
         notifications = self.ddb_client.scan(
@@ -141,6 +146,24 @@ class RemindersTestCase(test_utils.BaseTestCase, test_utils.DdbMixin):
             'type': 'transactional-email'
         }]
         self.assertCountEqual(expected_notifications, notifications)
+
+        # check appointment latest notification updated in ddb
+        appointment = app.AcuityAppointment(appointment_id='448161724')
+        appointment.ddb_load()
+        latest_notification_datetime = parser.parse(appointment.latest_participant_notification)
+        difference = abs(now - latest_notification_datetime)
+        self.assertLess(difference.seconds, 20)
+
+        # new reminder attempt results in no notification
+        self.clear_notifications_table()
+        result = rem.interview_reminder_handler(dict(), context=None)
+        expected_result = list()
+        self.assertEqual(expected_result, result)
+        notifications = self.ddb_client.scan(
+            table_name=self.notifications_table,
+            table_name_verbatim=True,
+        )
+        self.assertEqual(0, len(notifications))
 
     def test_04_send_reminders_no_appointments_to_remind(self):
         rh = copy.copy(self.rh)

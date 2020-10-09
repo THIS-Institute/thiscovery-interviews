@@ -76,14 +76,16 @@ class RemindersHandler:
             )
             try:
                 reminder_result = notifier.send_reminder().get('statusCode')
-            except Exception:
+            except:
                 self.logger.error('AppointmentNotifier.send_reminder raised an exception', extra={
                     'appointment': appointment.as_dict(),
                     'correlation_id': self.correlation_id,
                     'traceback': traceback.format_exc(),
                 })
                 reminder_result = None
-            results.append(reminder_result)
+            results.append(
+                (reminder_result, app_id)
+            )
         return results
 
 
@@ -93,4 +95,4 @@ def interview_reminder_handler(event, context):
         logger=event['logger'],
         correlation_id=event['correlation_id'],
     )
-    handler.send_reminders()
+    return handler.send_reminders()
