@@ -16,6 +16,7 @@
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
 import json
+import time
 
 from http import HTTPStatus
 
@@ -77,73 +78,59 @@ class TestAcuityEventProcessing(test_utils.BaseTestCase, test_utils.DdbMixin):
         self.assertCountEqual(expected_notifications, notifications)
 
     def test_01_process_booking_no_link_ok(self):
+        common_custom_properties = {
+            'appointment_date': 'Friday 02 October 2020',
+            'appointment_duration': '45 minutes',
+            'appointment_time': '13:15',
+            'interviewer_first_name': 'André',
+            'project_short_name': 'PSFU-05-pub-act',
+            'user_first_name': 'Clive'
+        }
+        researcher_custom_properties = {
+            **common_custom_properties,
+            'anon_project_specific_user_id': '64cdc867-e53d-40c9-adda-f0271bcf1063',
+            'appointment_type_name': 'Development appointment - no link',
+            'interviewer_url': 'Participant did not provide a phone number. '
+                               'Please contact them by email to obtain a contact number',
+            'user_email': 'clive@email.co.uk',
+            'user_last_name': 'Cresswell'
+        }
+        fred_notification = {
+            'details': {
+                'template_name': 'NA_interview_booked_researcher',
+                'to_recipient_email': 'fred@email.co.uk',
+                'custom_properties': researcher_custom_properties
+            },
+            'label': 'NA_interview_booked_researcher_fred@email.co.uk',
+            'type': 'transactional-email',
+        }
+        tester_notification = {
+            'details': {
+                'template_name': 'NA_interview_booked_researcher',
+                'to_recipient_email': TESTER_EMAIL_MAP[self.env_name],
+                'custom_properties': researcher_custom_properties
+            },
+            'label': f'NA_interview_booked_researcher_{TESTER_EMAIL_MAP[self.env_name]}',
+            'type': 'transactional-email',
+        }
+        participant_notification = {
+            'details': {
+                'custom_properties': {
+                    **common_custom_properties,
+                    'appointment_reschedule_url': 'https://app.acuityscheduling.com/schedule.php?owner=19499339&action=appt&id%5B%5D=9edb5e9373f203a9398073e132eb0e7a',
+                    'interview_url': 'We will call you on the phone number provided',
+                },
+                'template_name': 'NA_interview_booked_web_participant',
+                'to_recipient_email': 'clive@email.co.uk'
+            },
+            'label': 'NA_interview_booked_web_participant_clive@email.co.uk',
+            'type': 'transactional-email'
+        }
         expected_notifications = [
-            {
-                'details': {
-                    'custom_properties': {
-                        'anon_project_specific_user_id': '64cdc867-e53d-40c9-adda-f0271bcf1063',
-                        'appointment_date': 'Friday 02 October '
-                                            '2020 at 13:15',
-                        'appointment_duration': '45 minutes',
-                        'interviewer_url': 'Participant did not '
-                                           'provide a phone '
-                                           'number. Please contact '
-                                           'them by email to '
-                                           'obtain a contact '
-                                           'number',
-                        'project_short_name': 'PSFU-05-pub-act',
-                        'user_email': 'clive@email.co.uk',
-                        'user_first_name': 'Clive',
-                        'user_last_name': 'Cresswell'
-                    },
-                    'template_name': 'non-existent',
-                    'to_recipient_email': 'fred@email.co.uk'
-                },
-                'label': 'non-existent_fred@email.co.uk',
-                'type': 'transactional-email'
-            },
-            {
-                'details': {
-                    'custom_properties': {
-                        'anon_project_specific_user_id': '64cdc867-e53d-40c9-adda-f0271bcf1063',
-                        'appointment_date': 'Friday 02 October '
-                                            '2020 at 13:15',
-                        'appointment_duration': '45 minutes',
-                        'interviewer_url': 'Participant did not '
-                                           'provide a phone '
-                                           'number. Please contact '
-                                           'them by email to '
-                                           'obtain a contact '
-                                           'number',
-                        'project_short_name': 'PSFU-05-pub-act',
-                        'user_email': 'clive@email.co.uk',
-                        'user_first_name': 'Clive',
-                        'user_last_name': 'Cresswell'
-                    },
-                    'template_name': 'non-existent',
-                    'to_recipient_email': TESTER_EMAIL_MAP[self.env_name]
-                },
-                'label': f'non-existent_{TESTER_EMAIL_MAP[self.env_name]}',
-                'type': 'transactional-email'
-            },
-            {
-                'details': {
-                    'custom_properties': {
-                        'appointment_date': 'Friday 02 October '
-                                            '2020 at 13:15',
-                        'appointment_duration': '45 minutes',
-                        'appointment_reschedule_url': 'https://app.acuityscheduling.com/schedule.php?owner=19499339&action=appt&id%5B%5D=9edb5e9373f203a9398073e132eb0e7a',
-                        'interview_url': 'We will call you on the '
-                                         'phone number provided',
-                        'project_short_name': 'PSFU-05-pub-act',
-                        'user_first_name': 'Clive'
-                    },
-                    'template_name': 'non-existent',
-                    'to_recipient_email': 'clive@email.co.uk'
-                },
-                'label': 'non-existent_clive@email.co.uk',
-                'type': 'transactional-email'
-            }]
+            fred_notification,
+            tester_notification,
+            participant_notification,
+        ]
         self.common_routine_with_notifications(
             appointment_id=td['dev_appointment_no_link_id'],
             calendar_id=td['calendar_id'],
@@ -152,59 +139,58 @@ class TestAcuityEventProcessing(test_utils.BaseTestCase, test_utils.DdbMixin):
         )
 
     def test_02_process_booking_no_link_participant_not_in_thiscovery_database_ok(self):
+        common_custom_properties = {
+            'appointment_date': 'Thursday 01 October 2020',
+            'appointment_duration': '45 minutes',
+            'appointment_time': '14:15',
+            'interviewer_first_name': 'André',
+            'project_short_name': 'PSFU-05-pub-act',
+            'user_first_name': 'Greg',
+        }
+        researcher_custom_properties = {
+            **common_custom_properties,
+            'anon_project_specific_user_id': None,
+            'appointment_type_name': 'Development appointment - no link',
+            'interviewer_url': 'Please call participant on 01234567890',
+            'user_email': 'greg@email.co.uk',
+            'user_last_name': 'Gregory',
+        }
+        fred_notification = {
+            'details': {
+                'template_name': 'NA_interview_booked_researcher',
+                'to_recipient_email': 'fred@email.co.uk',
+                'custom_properties': researcher_custom_properties
+            },
+            'label': 'NA_interview_booked_researcher_fred@email.co.uk',
+            'type': 'transactional-email',
+        }
+        tester_notification = {
+            'details': {
+                'template_name': 'NA_interview_booked_researcher',
+                'to_recipient_email': TESTER_EMAIL_MAP[self.env_name],
+                'custom_properties': researcher_custom_properties
+            },
+            'label': f'NA_interview_booked_researcher_{TESTER_EMAIL_MAP[self.env_name]}',
+            'type': 'transactional-email',
+        }
+        participant_notification = {
+            'details': {
+                'custom_properties': {
+                    **common_custom_properties,
+                    'appointment_reschedule_url': 'https://app.acuityscheduling.com/schedule.php?owner=19499339&action=appt&id%5B%5D=2824c95d706bea4ec6604986b9358cd9',
+                    'interview_url': 'We will call you on the phone number provided',
+                },
+                'template_name': 'NA_interview_booked_web_participant',
+                'to_recipient_email': 'greg@email.co.uk',
+            },
+            'label': 'NA_interview_booked_web_participant_greg@email.co.uk',
+            'type': 'transactional-email'
+        }
         expected_notifications = [
-            {
-                'details': {
-                    'custom_properties': {
-                        'anon_project_specific_user_id': None,
-                        'appointment_date': 'Thursday 01 October 2020 at 14:15',
-                        'appointment_duration': '45 minutes',
-                        'interviewer_url': 'Please call participant on 01234567890',
-                        'project_short_name': 'PSFU-05-pub-act',
-                        'user_email': 'greg@email.co.uk',
-                        'user_first_name': 'Greg',
-                        'user_last_name': 'Gregory',
-                    },
-                    'template_name': 'non-existent',
-                    'to_recipient_email': 'fred@email.co.uk'
-                },
-                'label': 'non-existent_fred@email.co.uk',
-                'type': 'transactional-email'
-            },
-            {
-                'details': {
-                    'custom_properties': {
-                        'anon_project_specific_user_id': None,
-                        'appointment_date': 'Thursday 01 October 2020 at 14:15',
-                        'appointment_duration': '45 minutes',
-                        'interviewer_url': 'Please call participant on 01234567890',
-                        'project_short_name': 'PSFU-05-pub-act',
-                        'user_email': 'greg@email.co.uk',
-                        'user_first_name': 'Greg',
-                        'user_last_name': 'Gregory',
-                    },
-                    'template_name': 'non-existent',
-                    'to_recipient_email': TESTER_EMAIL_MAP[self.env_name]
-                },
-                'label': f'non-existent_{TESTER_EMAIL_MAP[self.env_name]}',
-                'type': 'transactional-email'
-            },
-            {
-                'details': {
-                    'custom_properties': {
-                        'appointment_date': 'Thursday 01 October 2020 at 14:15',
-                        'appointment_duration': '45 minutes',
-                        'appointment_reschedule_url': 'https://app.acuityscheduling.com/schedule.php?owner=19499339&action=appt&id%5B%5D=2824c95d706bea4ec6604986b9358cd9',
-                        'interview_url': 'We will call you on the phone number provided',
-                        'project_short_name': 'PSFU-05-pub-act',
-                        'user_first_name': 'Greg'
-                    },
-                    'template_name': 'non-existent',
-                    'to_recipient_email': 'greg@email.co.uk'
-                },
-                'label': 'non-existent_greg@email.co.uk',
-                'type': 'transactional-email'
-            }]
+            fred_notification,
+            tester_notification,
+            participant_notification,
+        ]
         self.common_routine_with_notifications(
             appointment_id=td['dev_appointment_no_link_participant_not_in_thiscovery_database_id'],
             calendar_id=td['calendar_id'],
@@ -213,59 +199,58 @@ class TestAcuityEventProcessing(test_utils.BaseTestCase, test_utils.DdbMixin):
         )
 
     def test_03_process_booking_no_link_participant_does_not_have_user_project_ok(self):
+        common_custom_properties = {
+            'appointment_date': 'Thursday 15 October 2020',
+            'appointment_duration': '45 minutes',
+            'appointment_time': '11:00',
+            'interviewer_first_name': 'André',
+            'project_short_name': 'PSFU-05-pub-act',
+            'user_first_name': 'Eddie',
+        }
+        researcher_custom_properties = {
+            **common_custom_properties,
+            'anon_project_specific_user_id': None,
+            'appointment_type_name': 'Development appointment - no link',
+            'interviewer_url': 'Participant did not provide a phone number. Please contact them by email to obtain a contact number',
+            'user_email': 'eddie@email.co.uk',
+            'user_last_name': 'Eagleton',
+        }
+        fred_notification = {
+            'details': {
+                'template_name': 'NA_interview_booked_researcher',
+                'to_recipient_email': 'fred@email.co.uk',
+                'custom_properties': researcher_custom_properties
+            },
+            'label': 'NA_interview_booked_researcher_fred@email.co.uk',
+            'type': 'transactional-email',
+        }
+        tester_notification = {
+            'details': {
+                'template_name': 'NA_interview_booked_researcher',
+                'to_recipient_email': TESTER_EMAIL_MAP[self.env_name],
+                'custom_properties': researcher_custom_properties
+            },
+            'label': f'NA_interview_booked_researcher_{TESTER_EMAIL_MAP[self.env_name]}',
+            'type': 'transactional-email',
+        }
+        participant_notification = {
+            'details': {
+                'custom_properties': {
+                    **common_custom_properties,
+                    'appointment_reschedule_url': 'https://app.acuityscheduling.com/schedule.php?owner=19499339&action=appt&id%5B%5D=3b7422961f0ef184e484a94e04e237c9',
+                    'interview_url': 'We will call you on the phone number provided',
+                },
+                'template_name': 'NA_interview_booked_web_participant',
+                'to_recipient_email': 'eddie@email.co.uk',
+            },
+            'label': 'NA_interview_booked_web_participant_eddie@email.co.uk',
+            'type': 'transactional-email'
+        }
         expected_notifications = [
-            {
-                'details': {
-                    'custom_properties': {
-                        'anon_project_specific_user_id': None,
-                        'appointment_date': 'Thursday 15 October 2020 at 11:00',
-                        'appointment_duration': '45 minutes',
-                        'interviewer_url': 'Participant did not provide a phone number. Please contact them by email to obtain a contact number',
-                        'project_short_name': 'PSFU-05-pub-act',
-                        'user_email': 'eddie@email.co.uk',
-                        'user_first_name': 'Eddie',
-                        'user_last_name': 'Eagleton',
-                    },
-                    'template_name': 'non-existent',
-                    'to_recipient_email': 'fred@email.co.uk'
-                },
-                'label': 'non-existent_fred@email.co.uk',
-                'type': 'transactional-email'
-            },
-            {
-                'details': {
-                    'custom_properties': {
-                        'anon_project_specific_user_id': None,
-                        'appointment_date': 'Thursday 15 October 2020 at 11:00',
-                        'appointment_duration': '45 minutes',
-                        'interviewer_url': 'Participant did not provide a phone number. Please contact them by email to obtain a contact number',
-                        'project_short_name': 'PSFU-05-pub-act',
-                        'user_email': 'eddie@email.co.uk',
-                        'user_first_name': 'Eddie',
-                        'user_last_name': 'Eagleton',
-                    },
-                    'template_name': 'non-existent',
-                    'to_recipient_email': TESTER_EMAIL_MAP[self.env_name]
-                },
-                'label': f'non-existent_{TESTER_EMAIL_MAP[self.env_name]}',
-                'type': 'transactional-email'
-            },
-            {
-                'details': {
-                    'custom_properties': {
-                        'appointment_date': 'Thursday 15 October 2020 at 11:00',
-                        'appointment_duration': '45 minutes',
-                        'appointment_reschedule_url': 'https://app.acuityscheduling.com/schedule.php?owner=19499339&action=appt&id%5B%5D=3b7422961f0ef184e484a94e04e237c9',
-                        'interview_url': 'We will call you on the phone number provided',
-                        'project_short_name': 'PSFU-05-pub-act',
-                        'user_first_name': 'Eddie',
-                    },
-                    'template_name': 'non-existent',
-                    'to_recipient_email': 'eddie@email.co.uk',
-                },
-                'label': 'non-existent_eddie@email.co.uk',
-                'type': 'transactional-email'
-            }]
+            fred_notification,
+            tester_notification,
+            participant_notification,
+        ]
         self.common_routine_with_notifications(
             appointment_id=td['dev_appointment_no_link_participant_does_not_have_user_project'],
             calendar_id=td['calendar_id'],
@@ -305,59 +290,59 @@ class TestAcuityEventProcessing(test_utils.BaseTestCase, test_utils.DdbMixin):
             f"Once you have replied to that email, please enter 'y' to confirm:"
         )
         # check notifications
+        common_custom_properties = {
+            'appointment_date': 'Tuesday 30 June 2020',
+            'appointment_duration': '30 minutes',
+            'appointment_time': '10:15',
+            'interviewer_first_name': 'André',
+            'project_short_name': 'PSFU-05-pub-act',
+            'user_first_name': 'Clive'
+        }
+        researcher_custom_properties = {
+            **common_custom_properties,
+            'anon_project_specific_user_id': '64cdc867-e53d-40c9-adda-f0271bcf1063',
+            'appointment_type_name': 'Test appointment',
+            "interviewer_url": "https://meet.myinterview.com/5f64ccbd-b2e3-44e9-aed2-53c55cca4ef5",
+            'user_email': 'clive@email.co.uk',
+            'user_last_name': 'Cresswell'
+        }
+        fred_notification = {
+            'details': {
+                'template_name': 'interview_booked_researcher',
+                'to_recipient_email': 'fred@email.co.uk',
+                'custom_properties': researcher_custom_properties
+            },
+            'label': 'interview_booked_researcher_fred@email.co.uk',
+            'type': 'transactional-email',
+        }
+        tester_notification = {
+            'details': {
+                'template_name': 'interview_booked_researcher',
+                'to_recipient_email': TESTER_EMAIL_MAP[self.env_name],
+                'custom_properties': researcher_custom_properties
+            },
+            'label': f'interview_booked_researcher_{TESTER_EMAIL_MAP[self.env_name]}',
+            'type': 'transactional-email',
+        }
+        participant_notification = {
+            'details': {
+                'custom_properties': {
+                    **common_custom_properties,
+                    'appointment_reschedule_url': 'https://app.acuityscheduling.com/schedule.php?owner=19499339&action=appt&id%5B%5D=9d20ba8fc7801ff9bc599861c72937ca',
+                    "interview_url": "<a href=\"https://meet.myinterview.com/3c52b95f-4a31-454b-8e0a-69061f424ce5\" style=\"color:#dd0031\" rel=\"noopener\">https://meet.myinterview.com/3c52b95f-4a31-454b-8e0a-69061f424ce5</a>",
+                },
+                'template_name': 'interview_booked_web_participant',
+                'to_recipient_email': 'clive@email.co.uk'
+            },
+            'label': 'interview_booked_web_participant_clive@email.co.uk',
+            'type': 'transactional-email'
+        }
         expected_notifications = [
-            {
-                'details': {
-                    'custom_properties': {
-                        "anon_project_specific_user_id": "64cdc867-e53d-40c9-adda-f0271bcf1063",
-                        "appointment_date": "Tuesday 30 June 2020 at 10:15",
-                        "appointment_duration": "30 minutes",
-                        "interviewer_url": "https://meet.myinterview.com/5f64ccbd-b2e3-44e9-aed2-53c55cca4ef5",
-                        "project_short_name": "PSFU-05-pub-act",
-                        "user_email": "clive@email.co.uk",
-                        "user_first_name": "Clive",
-                        "user_last_name": "Cresswell",
-                    },
-                    "template_name": "interview_booked_researcher",
-                    'to_recipient_email': 'fred@email.co.uk'
-                },
-                'label': f'interview_booked_researcher_fred@email.co.uk',
-                'type': 'transactional-email'
-            },
-            {
-                'details': {
-                    'custom_properties': {
-                        "anon_project_specific_user_id": "64cdc867-e53d-40c9-adda-f0271bcf1063",
-                        "appointment_date": "Tuesday 30 June 2020 at 10:15",
-                        "appointment_duration": "30 minutes",
-                        "interviewer_url": "https://meet.myinterview.com/5f64ccbd-b2e3-44e9-aed2-53c55cca4ef5",
-                        "project_short_name": "PSFU-05-pub-act",
-                        "user_email": "clive@email.co.uk",
-                        "user_first_name": "Clive",
-                        "user_last_name": "Cresswell",
-                    },
-                    "template_name": "interview_booked_researcher",
-                    'to_recipient_email': TESTER_EMAIL_MAP[self.env_name]
-                },
-                'label': f'interview_booked_researcher_{TESTER_EMAIL_MAP[self.env_name]}',
-                'type': 'transactional-email'
-            },
-            {
-                'details': {
-                    'custom_properties': {
-                        "appointment_date": "Tuesday 30 June 2020 at 10:15",
-                        "appointment_duration": "30 minutes",
-                        "appointment_reschedule_url": "https://app.acuityscheduling.com/schedule.php?owner=19499339&action=appt&id%5B%5D=9d20ba8fc7801ff9bc599861c72937ca",
-                        "interview_url": "<a href=\"https://meet.myinterview.com/3c52b95f-4a31-454b-8e0a-69061f424ce5\" style=\"color:#dd0031\" rel=\"noopener\">https://meet.myinterview.com/3c52b95f-4a31-454b-8e0a-69061f424ce5</a>",
-                        "project_short_name": "PSFU-05-pub-act",
-                        "user_first_name": "Clive"
-                    },
-                    "template_name": "interview_booked_web_participant",
-                    'to_recipient_email': 'clive@email.co.uk'
-                },
-                'label': 'interview_booked_web_participant_clive@email.co.uk',
-                'type': 'transactional-email'
-            }]
+            fred_notification,
+            tester_notification,
+            participant_notification,
+        ]
+        time.sleep(15)
         notifications = self.ddb_client.scan(
             table_name=self.notifications_table,
             table_name_verbatim=True,
@@ -373,5 +358,8 @@ class TestAcuityEventProcessing(test_utils.BaseTestCase, test_utils.DdbMixin):
         ]
         for n in notifications:
             for a in attributes_to_ignore:
-                del n[a]
+                try:
+                    del n[a]
+                except KeyError:
+                    pass
         self.assertCountEqual(expected_notifications, notifications)
