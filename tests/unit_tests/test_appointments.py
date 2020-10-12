@@ -392,6 +392,14 @@ class TestAcuityEvent(AppointmentsTestCase):
         result = self.ae.notify_thiscovery_team()
         self.assertEqual(HTTPStatus.OK, result)
 
+    def test_17a_notify_thiscovery_team_aborted_past_appointment(self):
+        ae = app.AcuityEvent(
+            acuity_event=self.test_data['past_appointment_event_body'],
+            logger=self.logger,
+        )
+        result = ae.notify_thiscovery_team()
+        self.assertEqual('aborted', result)
+
     def test_18_process_booking_has_link_ok(self):
         (
             storing_result,
