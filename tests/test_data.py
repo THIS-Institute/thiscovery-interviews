@@ -22,6 +22,7 @@ td = {
     'dev_appointment_no_link_participant_not_in_thiscovery_database_id': 450820094,
     'dev_appointment_no_link_participant_does_not_have_user_project': 451904182,
     'test_appointment_no_notif_id': 448161419,
+    'past_test_appointment_id': 437321459,
 
     'test_appointment_type_id': 14792299,
     'dev_appointment_type_id': 14649911,

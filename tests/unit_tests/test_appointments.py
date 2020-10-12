@@ -499,6 +499,9 @@ class TestAppointmentNotifier(AppointmentsTestCase):
         cls.an.appointment.appointment_type.ddb_load()
         cls.cancelled_aa = None
         cls.cancelled_an = None
+        cls.past_aa = None
+        cls.past_an = None
+
 
     @classmethod
     def load_cancelled_appointment(cls):
@@ -512,6 +515,20 @@ class TestAppointmentNotifier(AppointmentsTestCase):
                 appointment=cls.cancelled_aa,
                 logger=cls.logger,
             )
+
+    @classmethod
+    def load_past_appointment(cls):
+        if cls.past_aa is None:
+            cls.past_aa = app.AcuityAppointment(
+                appointment_id=cls.test_data['past_test_appointment_id'],
+                logger=cls.logger,
+            )
+        if cls.past_an is None:
+            cls.past_an = app.AppointmentNotifier(
+                appointment=cls.past_aa,
+                logger=cls.logger,
+            )
+
 
     def test_24_get_project_short_name_ok(self):
         self.an.appointment.appointment_type.project_task_id = self.test_data['project_task_id']
@@ -571,21 +588,27 @@ class TestAppointmentNotifier(AppointmentsTestCase):
         expected_result = {'participant': 'aborted', 'researchers': ['aborted', 'aborted']}
         self.assertEqual(expected_result, result)
 
-    def test_31_get_calendar_ddb_item_non_existent(self):
+    def test_31_send_notifications_aborted_if_appointment_in_the_past(self):
+        self.load_past_appointment()
+        result = self.past_an.send_notifications(event_type='booking')
+        expected_result = {'participant': 'aborted', 'researchers': ['aborted', 'aborted']}
+        self.assertEqual(expected_result, result)
+
+    def test_32_get_calendar_ddb_item_non_existent(self):
         an = copy.copy(self.an)
         an.appointment.calendar_id = '123456789'
         with self.assertRaises(utils.ObjectDoesNotExistError):
             an._get_calendar_ddb_item()
 
-    def test_32_get_interviewer_myinterview_link_ok(self):
+    def test_33_get_interviewer_myinterview_link_ok(self):
         result = self.an._get_interviewer_myinterview_link()
         self.assertEqual('https://meet.myinterview.com/5f64ccbd-b2e3-44e9-aed2-53c55cca4ef5', result)
 
-    def test_33_get_anon_project_specific_user_id_ok(self):
+    def test_34_get_anon_project_specific_user_id_ok(self):
         result = self.an._get_anon_project_specific_user_id()
         self.assertEqual('64cdc867-e53d-40c9-adda-f0271bcf1063', result)
 
-    def test_33_get_anon_project_specific_user_id_user_not_found(self):
+    def test_35_get_anon_project_specific_user_id_user_not_found(self):
         ap = app.AcuityAppointment(
             appointment_id=self.test_data['test_appointment_id'],
         )
@@ -596,7 +619,7 @@ class TestAppointmentNotifier(AppointmentsTestCase):
         result = an._get_anon_project_specific_user_id()
         self.assertIsNone(result)
 
-    def test_34_get_custom_properties_researcher_booking_ok(self):
+    def test_36_get_custom_properties_researcher_booking_ok(self):
         result = self.an._get_custom_properties(
             properties_list=INTERVIEWER_BOOKING_RESCHEDULING,
             template_type='researcher',
