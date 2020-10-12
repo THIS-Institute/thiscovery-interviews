@@ -19,7 +19,9 @@
 import os
 import unittest
 
+import src.appointments as app
 import src.common.utilities as utils
+from src.common.dynamodb_utilities import Dynamodb
 from local.dev_config import TEST_ON_AWS
 
 
@@ -33,6 +35,33 @@ def tests_running_on_aws():
     elif test_on_aws.lower() == 'false':
         test_on_aws = False
     return test_on_aws
+
+
+class DdbMixin:
+    @classmethod
+    def set_notifications_table(cls):
+        try:
+            cls.notifications_table = f"thiscovery-core-{cls.env_name}-notifications"
+        except AttributeError:
+            cls.env_name = utils.get_environment_name()
+            cls.notifications_table = f"thiscovery-core-{cls.env_name}-notifications"
+
+    @classmethod
+    def clear_notifications_table(cls):
+        cls.set_notifications_table()
+        try:
+            cls.ddb_client.delete_all(table_name=cls.notifications_table, table_name_verbatim=True)
+        except AttributeError:
+            cls.ddb_client = Dynamodb()
+            cls.ddb_client.delete_all(table_name=cls.notifications_table, table_name_verbatim=True)
+
+    @classmethod
+    def clear_appointments_table(cls):
+        try:
+            cls.ddb_client.delete_all(table_name=app.APPOINTMENTS_TABLE)
+        except AttributeError:
+            cls.ddb_client = Dynamodb()
+            cls.ddb_client.delete_all(table_name=app.APPOINTMENTS_TABLE)
 
 
 class BaseTestCase(unittest.TestCase):

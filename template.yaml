@@ -194,6 +194,10 @@ Resources:
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
+        - AttributeName: appointment_date
+          AttributeType: S
+        - AttributeName: latest_participant_notification
+          AttributeType: S
       BillingMode: PAY_PER_REQUEST
       KeySchema:
         - AttributeName: id
@@ -201,6 +205,15 @@ Resources:
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
       TableName: !Sub ${AWS::StackName}-Appointments
+      GlobalSecondaryIndexes:
+        - IndexName: reminders-index
+          KeySchema:
+            - AttributeName: appointment_date
+              KeyType: HASH
+            - AttributeName: latest_participant_notification
+              KeyType: RANGE
+          Projection:
+            ProjectionType: KEYS_ONLY
   SendAppointmentReminder:
     Type: AWS::Serverless::Function
     Properties:

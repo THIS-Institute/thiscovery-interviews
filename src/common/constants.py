@@ -127,6 +127,28 @@ DEFAULT_TEMPLATES = {  # fallback default templates (to be overwritten if specif
                 },
             },
         },
+        'reminder': {
+            'web': {
+                'nhs': {
+                    'name': "interview_reminder_web_nhs_participant",
+                    'custom_properties': WEB_PROPERTIES
+                },
+                'other': {
+                    'name': "interview_reminder_web_participant",
+                    'custom_properties': WEB_PROPERTIES
+                },
+            },
+            'phone': {
+                'nhs': {
+                    'name': "interview_reminder_web_participant",
+                    'custom_properties': WEB_PROPERTIES
+                },
+                'other': {
+                    'name': "interview_reminder_web_participant",
+                    'custom_properties': WEB_PROPERTIES
+                },
+            },
+        },
     },
     'researcher': {
         'booking': {
@@ -192,4 +214,4 @@ TEST_TEMPLATES = replace_item(copy.deepcopy(DEFAULT_TEMPLATES), 'name', 'non-exi
 
 if __name__ == '__main__':
     from pprint import pprint
-    pprint(INTERVIEWER_CANCELLATION)
+    pprint(WEB_PROPERTIES)
