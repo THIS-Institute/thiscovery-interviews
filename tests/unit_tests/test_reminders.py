@@ -130,7 +130,7 @@ class RemindersTestCase(test_utils.BaseTestCase, test_utils.DdbMixin):
         expected_notifications = [{
             'details': {
                 'custom_properties': {
-                    'appointment_date': 'Monday 28 September 2020',
+                    'appointment_date': 'Sunday 28 September 2025',
                     'appointment_duration': '30 minutes',
                     'appointment_reschedule_url': 'https://app.acuityscheduling.com/schedule.php?owner=19499339&action=appt&id%5B%5D=ab81fa72b0d0c1dead5057103c292bd3',
                     'appointment_time': '13:00',

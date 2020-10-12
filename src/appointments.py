@@ -15,6 +15,7 @@
 #   A copy of the GNU Affero General Public License is available in the
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
+import datetime
 import json
 import re
 from collections import ChainMap
@@ -327,7 +328,7 @@ class AppointmentNotifier:
                     'correlation_id': self.correlation_id
                 })
                 return True
-        return False
+        return check_appointment_in_the_past(self.appointment)
 
     def _get_project_short_name(self):
         project_list = self.appointment._core_api_client.get_projects()
@@ -538,6 +539,8 @@ class AcuityEvent:
     def notify_thiscovery_team(self):
         if self.appointment.acuity_info is None:
             self.appointment.get_appointment_info_from_acuity()
+        if check_appointment_in_the_past(self.appointment):
+            return 'aborted'
         appointment_type_name = self.appointment.appointment_type.name
         emails_client = EmailsApiClient(self.correlation_id)
         appointment_management_secret = utils.get_secret('interviews')['appointment-management']
@@ -631,6 +634,19 @@ class AcuityEvent:
             raise NotImplementedError(f'Processing of a {self.event_type} appointment has not been implemented')
 
         return storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results
+
+
+def check_appointment_in_the_past(appointment_instance):
+    two_hours_ago = utils.now_with_tz() - datetime.timedelta(hours=2)
+    appointment_datetime = parser.parse(appointment_instance.acuity_info['datetime'])
+    if appointment_datetime < two_hours_ago:
+        appointment_instance._logger.info('Notification aborted; appointment is in the past', extra={
+            'appointment': appointment_instance.as_dict(),
+            'correlation_id': appointment_instance._correlation_id
+        })
+        return True
+    else:
+        return False
 
 
 def set_interview_url(appointment_id, interview_url, event_type, logger=None, correlation_id=None):

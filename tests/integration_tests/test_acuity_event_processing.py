@@ -79,7 +79,7 @@ class TestAcuityEventProcessing(test_utils.BaseTestCase, test_utils.DdbMixin):
 
     def test_01_process_booking_no_link_ok(self):
         common_custom_properties = {
-            'appointment_date': 'Friday 02 October 2020',
+            'appointment_date': 'Thursday 02 October 2025',
             'appointment_duration': '45 minutes',
             'appointment_time': '13:15',
             'interviewer_first_name': 'André',
@@ -140,7 +140,7 @@ class TestAcuityEventProcessing(test_utils.BaseTestCase, test_utils.DdbMixin):
 
     def test_02_process_booking_no_link_participant_not_in_thiscovery_database_ok(self):
         common_custom_properties = {
-            'appointment_date': 'Thursday 01 October 2020',
+            'appointment_date': 'Wednesday 01 October 2025',
             'appointment_duration': '45 minutes',
             'appointment_time': '14:15',
             'interviewer_first_name': 'André',
@@ -200,7 +200,7 @@ class TestAcuityEventProcessing(test_utils.BaseTestCase, test_utils.DdbMixin):
 
     def test_03_process_booking_no_link_participant_does_not_have_user_project_ok(self):
         common_custom_properties = {
-            'appointment_date': 'Thursday 15 October 2020',
+            'appointment_date': 'Wednesday 15 October 2025',
             'appointment_duration': '45 minutes',
             'appointment_time': '11:00',
             'interviewer_first_name': 'André',
@@ -291,7 +291,7 @@ class TestAcuityEventProcessing(test_utils.BaseTestCase, test_utils.DdbMixin):
         )
         # check notifications
         common_custom_properties = {
-            'appointment_date': 'Tuesday 30 June 2020',
+            'appointment_date': 'Monday 30 June 2025',
             'appointment_duration': '30 minutes',
             'appointment_time': '10:15',
             'interviewer_first_name': 'André',

@@ -22,6 +22,7 @@ td = {
     'dev_appointment_no_link_participant_not_in_thiscovery_database_id': 450820094,
     'dev_appointment_no_link_participant_does_not_have_user_project': 451904182,
     'test_appointment_no_notif_id': 448161419,
+    'past_test_appointment_id': 437321459,
 
     'test_appointment_type_id': 14792299,
     'dev_appointment_type_id': 14649911,
@@ -33,6 +34,7 @@ td = {
     'email': 'clive@email.co.uk',
     'participant_user_id': '8518c7ed-1df4-45e9-8dc4-d49b57ae0663',
     'event_body': "action=appointment.scheduled&id=399682887&calendarID=4038206&appointmentTypeID=14792299",
+    'past_appointment_event_body': "action=appointment.scheduled&id=437321459&calendarID=4038206&appointmentTypeID=14792299",
     'cancelled_appointment_id': 446315771,
     'interview_url': "https://meet.myinterview.com/1b879c51-2e29-46ae-bd36-3199860e65f2",
     'project_task_id': '273b420e-09cb-419c-8b57-b393595dba78',
