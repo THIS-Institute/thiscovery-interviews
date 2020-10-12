@@ -15,6 +15,7 @@
 #   A copy of the GNU Affero General Public License is available in the
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
+import datetime
 import json
 import re
 from collections import ChainMap
@@ -327,6 +328,14 @@ class AppointmentNotifier:
                     'correlation_id': self.correlation_id
                 })
                 return True
+        two_hours_ago = utils.now_with_tz() - datetime.timedelta(hours=2)
+        appointment_datetime = parser.parse(self.appointment.acuity_info['datetime'])
+        if appointment_datetime < two_hours_ago:
+            self.logger.info('Notification aborted; appointment is in the past', extra={
+                'appointment': self.appointment.as_dict(),
+                'correlation_id': self.correlation_id
+            })
+            return True
         return False
 
     def _get_project_short_name(self):

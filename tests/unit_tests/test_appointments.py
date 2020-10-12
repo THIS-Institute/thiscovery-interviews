@@ -604,7 +604,7 @@ class TestAppointmentNotifier(AppointmentsTestCase):
         self.assertDictEqual(
             {
                 'anon_project_specific_user_id': '64cdc867-e53d-40c9-adda-f0271bcf1063',
-                'appointment_date': 'Tuesday 30 June 2020',
+                'appointment_date': 'Monday 30 June 2025',
                 'appointment_duration': '30 minutes',
                 'appointment_time': '10:15',
                 'appointment_type_name': 'Test appointment',

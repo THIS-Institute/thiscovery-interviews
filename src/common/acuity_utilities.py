@@ -155,6 +155,21 @@ class AcuityClient:
             self.logger.error(error_message, extra=error_dict)
             raise utils.DetailedValueError(error_message, details=error_dict)
 
+    def reschedule_appointment(self, appointment_id, new_datetime):
+        response = self.session.put(
+            url=f"{self.base_url}appointments/{appointment_id}/reschedule",
+            data=json.dumps({
+                "datetime": new_datetime.strftime("%Y-%m-%dT%H:%M:%S%Z")
+            })
+        )
+        if response.ok:
+            return response.status_code
+        else:
+            error_message = f'Acuity call failed with status code: {response.status_code}'
+            error_dict = {'response': response.content}
+            self.logger.error(error_message, extra=error_dict)
+            raise utils.DetailedValueError(error_message, details=error_dict)
+
 
 if __name__ == '__main__':
     client = AcuityClient()

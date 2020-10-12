@@ -31,6 +31,8 @@ def main():
             item={
                 'label': target_calendar['name'],
                 'block_monday_morning': True,
+                'emails_to_notify': list(),
+                'myinterview_link': None,
             },
         )
         assert response['ResponseMetadata']['HTTPStatusCode'] == HTTPStatus.OK, f'Dynamodb client put_item operation failed with response: {response}'

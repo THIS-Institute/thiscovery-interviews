@@ -4,14 +4,16 @@ It is intended to be run as an one-off process to facilitate initial setup
 of this stack.
 """
 
-
+from pprint import pprint
 from src.appointments import AppointmentType
 from src.common.acuity_utilities import AcuityClient
 from common.utilities import ObjectDoesNotExistError
 
+
 def main():
     ac = AcuityClient()
     app_types = ac.get_appointment_types()
+    pprint(app_types)
     for at in app_types:
         appointment_type = AppointmentType()
         appointment_type.type_id = at['id']
