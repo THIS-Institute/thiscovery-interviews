@@ -242,7 +242,7 @@ Resources:
         Timer3:
           Type: Schedule
           Properties:
-            Schedule: 'cron(0 0 8,14 * * ?)'
+            Schedule: 'cron(0 8,14 * * ? *)'
           Metadata:
             StackeryName: ReminderTimer
   SetInterviewUrl:
