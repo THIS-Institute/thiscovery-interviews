@@ -21,6 +21,7 @@ import unittest
 
 import src.appointments as app
 import src.common.utilities as utils
+import tests.test_data as test_data
 from src.common.dynamodb_utilities import Dynamodb
 from local.dev_config import TEST_ON_AWS
 
@@ -62,6 +63,35 @@ class DdbMixin:
         except AttributeError:
             cls.ddb_client = Dynamodb()
             cls.ddb_client.delete_all(table_name=app.APPOINTMENTS_TABLE)
+
+    @classmethod
+    def populate_appointments_table(cls, fast_mode=True):
+        """
+        Args:
+            fast_mode: if True, uses ddb batch_writer to quickly populate the appointments table but items
+                will not contain created, modified and type fields added by Dynamodb.put_item
+        """
+        if fast_mode:
+            ddb_client = Dynamodb()
+            app_table = ddb_client.get_table(table_name=app.APPOINTMENTS_TABLE)
+            with app_table.batch_writer() as batch:
+                for appointment in test_data.appointments.values():
+                    appointment['id'] = appointment['appointment_id']
+                    batch.put_item(appointment)
+        else:
+            for appointment_dict in test_data.appointments.values():
+                appointment = app.AcuityAppointment(appointment_dict["appointment_id"])
+                appointment.from_dict(appointment_dict)
+                at = app.AppointmentType()
+                at.from_dict(appointment.appointment_type)
+                appointment.appointment_type = at
+                try:
+                    appointment.ddb_dump()
+                except utils.DetailedValueError:
+                    cls.logger.debug('PutItem failed, which probably '
+                                     'means Appointment table already contains '
+                                     'the required test data; aborting this methid', extra={})
+                    break
 
 
 class BaseTestCase(unittest.TestCase):
