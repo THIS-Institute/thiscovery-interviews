@@ -242,7 +242,7 @@ Resources:
         Timer3:
           Type: Schedule
           Properties:
-            Schedule: rate(120 minutes)
+            Schedule: 'cron(0 0 8,14 * * ?)'
           Metadata:
             StackeryName: ReminderTimer
   SetInterviewUrl:
@@ -280,6 +280,34 @@ Resources:
             Path: /v1/set-interview-url
             Method: PUT
             RestApiId: !Ref InterviewsApi
+  DeleteOldAppointments:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-DeleteOldAppointments
+      Description: !Sub
+        - Stack ${StackTagName} Environment ${EnvironmentTagName} Function ${ResourceName}
+        - ResourceName: DeleteOldAppointments
+      CodeUri: src
+      Handler: clean.delete_old_appointments
+      Runtime: python3.7
+      MemorySize: !Ref EnvConfiglambdamemorysizeAsString
+      Timeout: !Ref EnvConfiglambdatimeoutAsString
+      Tracing: Active
+      Policies:
+        - AWSXrayWriteOnlyAccess
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Appointments
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Appointments
+          TABLE_ARN: !GetAtt Appointments.Arn
+      Events:
+        Timer4:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 day)
+          Metadata:
+            StackeryName: ClearAppTimer
 Parameters:
   StackTagName:
     Type: String
