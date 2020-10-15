@@ -16,6 +16,7 @@
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
 import json
+import os
 import time
 
 from http import HTTPStatus
@@ -73,6 +74,12 @@ class TestAcuityEventProcessing(test_tools.BaseTestCase, test_utils.DdbMixin):
             'processing_fail_count',
             'processing_status',
         ]
+        # if running_on_aws, template names will not have NA_ appended to the beginning
+        if os.environ['TEST_ON_AWS'] == 'True':
+            for n in expected_notifications:
+                n['label'] = n['label'].replace('NA_', '')
+                n['details']['template_name'] = n['details']['template_name'].replace('NA_', '')
+
         for n in notifications:
             for a in attributes_to_ignore:
                 del n[a]
