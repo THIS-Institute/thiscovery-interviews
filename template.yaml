@@ -301,6 +301,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref Appointments
           TABLE_ARN: !GetAtt Appointments.Arn
+          SECRETS_NAMESPACE: !Sub /${EnvironmentTagName}/
       Events:
         Timer4:
           Type: Schedule
