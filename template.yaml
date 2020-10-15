@@ -225,7 +225,7 @@ Resources:
       Handler: reminders.interview_reminder_handler
       Runtime: python3.7
       MemorySize: !Ref EnvConfiglambdamemorysizeAsString
-      Timeout: !Ref EnvConfiglambdatimeoutAsString
+      Timeout: 20
       Tracing: Active
       Policies:
         - AWSXrayWriteOnlyAccess
@@ -291,7 +291,7 @@ Resources:
       Handler: clean.delete_old_appointments
       Runtime: python3.7
       MemorySize: !Ref EnvConfiglambdamemorysizeAsString
-      Timeout: !Ref EnvConfiglambdatimeoutAsString
+      Timeout: 20
       Tracing: Active
       Policies:
         - AWSXrayWriteOnlyAccess
