@@ -222,7 +222,7 @@ Resources:
         - Stack ${StackTagName} Environment ${EnvironmentTagName} Function ${ResourceName}
         - ResourceName: SendAppointmentReminder
       CodeUri: src
-      Handler: appointments.interview_reminder_handler
+      Handler: reminders.interview_reminder_handler
       Runtime: python3.7
       MemorySize: !Ref EnvConfiglambdamemorysizeAsString
       Timeout: !Ref EnvConfiglambdatimeoutAsString
