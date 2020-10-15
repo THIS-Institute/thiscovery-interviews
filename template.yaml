@@ -297,11 +297,13 @@ Resources:
         - AWSXrayWriteOnlyAccess
         - DynamoDBCrudPolicy:
             TableName: !Ref Appointments
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/${EnvironmentTagName}/*
       Environment:
         Variables:
           TABLE_NAME: !Ref Appointments
           TABLE_ARN: !GetAtt Appointments.Arn
-          SECRETS_NAMESPACE: !Sub /${EnvironmentTagName}/
+          SECRETS_NAMESPACE_2: !Sub /${EnvironmentTagName}/
       Events:
         Timer4:
           Type: Schedule
