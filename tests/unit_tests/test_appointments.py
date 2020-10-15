@@ -28,8 +28,6 @@ from pprint import pprint
 import src.appointments as app
 import thiscovery_lib.utilities as utils
 import thiscovery_dev_tools.testing_tools as test_utils
-from src.appointments import AcuityAppointmentEvent
-from src.common.acuity_utilities import AcuityClient
 from src.common.constants import TEST_TEMPLATES, DEFAULT_TEMPLATES, INTERVIEWER_BOOKING_RESCHEDULING
 from local.secrets import TESTER_EMAIL_MAP
 from tests.test_data import td

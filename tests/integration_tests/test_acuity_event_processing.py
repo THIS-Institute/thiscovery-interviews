@@ -22,11 +22,12 @@ from http import HTTPStatus
 
 import src.appointments as app
 import tests.testing_utilities as test_utils
+import thiscovery_dev_tools.testing_tools as test_tools
 from local.secrets import TESTER_EMAIL_MAP
 from tests.test_data import td
 
 
-class TestAcuityEventProcessing(test_utils.BaseTestCase, test_utils.DdbMixin):
+class TestAcuityEventProcessing(test_tools.BaseTestCase, test_utils.DdbMixin):
     maxDiff = None
     """
     - no notifications created if appointment type has send_notifications == False
@@ -47,7 +48,7 @@ class TestAcuityEventProcessing(test_utils.BaseTestCase, test_utils.DdbMixin):
                      f"&calendarID={calendar_id}" \
                      f"&appointmentTypeID={appointment_type_id}"
 
-        result = test_utils.test_post(
+        result = test_tools.test_post(
             local_method=app.interview_appointment_api,
             aws_url='v1/interview-appointment',
             request_body=event_body

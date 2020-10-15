@@ -27,10 +27,11 @@ import src.appointments as app
 import src.clean as clean
 import src.reminders as rem
 
-import common.utilities as utils
+import thiscovery_lib.utilities as utils
 import tests.test_data as test_data
 import tests.testing_utilities as test_utils
-from src.common.dynamodb_utilities import Dynamodb
+import thiscovery_dev_tools.testing_tools as test_tools
+from thiscovery_lib.dynamodb_utilities import Dynamodb
 
 
 TEST_DATETIME_1 = datetime.datetime(
@@ -43,14 +44,14 @@ TEST_DATETIME_1 = datetime.datetime(
 )
 
 
-class AppointmentsCleanerTestCase(test_utils.BaseTestCase, test_utils.DdbMixin):
+class AppointmentsCleanerTestCase(test_tools.BaseTestCase, test_utils.DdbMixin):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.ac = clean.AppointmentsCleaner(
             logger=cls.logger,
         )
-        cls.ddb_client = Dynamodb()
+        cls.ddb_client = Dynamodb(stack_name=app.STACK_NAME)
         cls.populate_appointments_table()
 
     def test_01_get_appointments_to_be_deleted_ok(self):

@@ -18,6 +18,7 @@
 import copy
 
 
+STACK_NAME = 'thiscovery-interviews'
 APPOINTMENTS_TABLE = 'Appointments'
 APPOINTMENT_TYPES_TABLE = 'AppointmentTypes'
 

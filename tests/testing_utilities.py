@@ -15,11 +15,14 @@
 #   A copy of the GNU Affero General Public License is available in the
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
+import local.dev_config  # set env variables
+import local.secrets  # set env variables
 import src.appointments as app
 import thiscovery_lib.utilities as utils
 import tests.test_data as test_data
 from thiscovery_lib.dynamodb_utilities import Dynamodb
 from local.dev_config import TEST_ON_AWS
+from src.common.constants import STACK_NAME
 
 
 class DdbMixin:
@@ -45,7 +48,7 @@ class DdbMixin:
         try:
             cls.ddb_client.delete_all(table_name=app.APPOINTMENTS_TABLE)
         except AttributeError:
-            cls.ddb_client = Dynamodb()
+            cls.ddb_client = Dynamodb(stack_name=STACK_NAME)
             cls.ddb_client.delete_all(table_name=app.APPOINTMENTS_TABLE)
 
     @classmethod
@@ -56,7 +59,7 @@ class DdbMixin:
                 will not contain created, modified and type fields added by Dynamodb.put_item
         """
         if fast_mode:
-            ddb_client = Dynamodb()
+            ddb_client = Dynamodb(stack_name=STACK_NAME)
             app_table = ddb_client.get_table(table_name=app.APPOINTMENTS_TABLE)
             with app_table.batch_writer() as batch:
                 for appointment in test_data.appointments.values():
