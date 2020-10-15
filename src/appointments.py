@@ -29,6 +29,202 @@ from common.core_api_utilities import CoreApiClient
 from thiscovery_lib.dynamodb_utilities import Dynamodb
 from common.emails_api_utilities import EmailsApiClient
 
+
+class AppointmentType:
+    """
+    Represents an Acuity appointment type with additional attributes
+    """
+    def __init__(self, ddb_client=None, acuity_client=None, logger=None, correlation_id=None):
+        self.type_id = None
+        self.name = None
+        self.category = None
+        self.has_link = None
+        self.send_notifications = None
+        self.templates = None
+        self.modified = None  # flag used in ddb_load method to check if ddb data was already fetched
+        self.project_task_id = None
+
+        self._logger = logger
+        self._correlation_id = correlation_id
+        if logger is None:
+            self._logger = utils.get_logger()
+        self._ddb_client = ddb_client
+        if ddb_client is None:
+            self._ddb_client = Dynamodb()
+        self._acuity_client = acuity_client
+        if acuity_client is None:
+            self._acuity_client = AcuityClient(correlation_id=self._correlation_id)
+
+    def as_dict(self):
+        return {k: v for k, v in self.__dict__.items() if (k[0] != "_") and (k not in ['created', 'modified'])}
+
+    def from_dict(self, type_dict):
+        self.__dict__.update(type_dict)
+
+    def ddb_dump(self, update_allowed=False):
+        return self._ddb_client.put_item(
+            table_name=APPOINTMENT_TYPES_TABLE,
+            key=str(self.type_id),
+            item_type='acuity-appointment-type',
+            item_details=None,
+            item=self.as_dict(),
+            update_allowed=update_allowed
+        )
+
+    def ddb_load(self):
+        if self.modified is None:
+            item = self._ddb_client.get_item(
+                table_name=APPOINTMENT_TYPES_TABLE,
+                key=str(self.type_id),
+                correlation_id=self._correlation_id
+            )
+            try:
+                self.__dict__.update(item)
+            except TypeError:
+                raise utils.ObjectDoesNotExistError(
+                    f'Appointment type {self.type_id} could not be found in Dynamodb',
+                    details={
+                        'appointment_type': self.as_dict(),
+                        'correlation_id': self._correlation_id,
+                    }
+                )
+
+    def get_appointment_type_id_to_info_map(self):
+        """
+        Converts the list of appointment types returned by AcuityClient.get_appointment_types()
+        to a dictionary indexed by id
+        """
+        appointment_types = self._acuity_client.get_appointment_types()
+        return {str(x['id']): x for x in appointment_types}
+
+    def get_appointment_type_info_from_acuity(self):
+        """
+        There is no direct method to get a appointment type by id (https://developers.acuityscheduling.com/reference), so
+        we have to fetch all appointment types and lookup
+        """
+        if (self.name is None) or (self.category is None):
+            id_to_info = self.get_appointment_type_id_to_info_map()
+            self.name = id_to_info[str(self.type_id)]['name']
+            self.category = id_to_info[str(self.type_id)]['category']
+
+
+class AcuityAppointment:
+    """
+    Represents an Acuity appointment
+    """
+    def __init__(self, appointment_id, logger=None, correlation_id=None):
+        self.appointment_id = str(appointment_id)
+        self.acuity_info = None
+        self.calendar_id = None
+        self.calendar_name = None
+        self.link = None
+        self.participant_email = None
+        self.participant_user_id = None
+        self.appointment_type = AppointmentType()
+        self.latest_participant_notification = '0000-00-00 00:00:00+00:00'  # used as GSI sort key, so cannot be None
+        self.appointment_date = None
+
+        self._logger = logger
+        if self._logger is None:
+            self._logger = utils.get_logger()
+        self._correlation_id = correlation_id
+        self._acuity_client = AcuityClient(correlation_id=self._correlation_id)
+        self._ddb_client = Dynamodb()
+        self._core_api_client = CoreApiClient(correlation_id=self._correlation_id)
+
+    def __repr__(self):
+        return str(self.__dict__)
+
+    def from_dict(self, appointment_dict):
+        """Used to quickly load appointments into Dynamodb for testing"""
+        self.__dict__.update(appointment_dict)
+
+    def as_dict(self):
+        d = {k: v for k, v in self.__dict__.items() if (k[0] != "_") and (k not in ['created', 'modified', 'appointment_type'])}
+        d['appointment_type'] = self.appointment_type.as_dict()
+        return d
+
+    def ddb_dump(self, update_allowed=False):
+        self.get_appointment_info_from_acuity()  # populates self.appointment_type.type_id
+        self.appointment_type.ddb_load()
+        # self.get_participant_user_id()
+        return self._ddb_client.put_item(
+            table_name=APPOINTMENTS_TABLE,
+            key=self.appointment_id,
+            item_type='acuity-appointment',
+            item_details=None,
+            item=self.as_dict(),
+            update_allowed=update_allowed
+        )
+
+    def ddb_load(self):
+        item = self.get_appointment_item_from_ddb()
+        try:
+            item_app_type = item['appointment_type']
+        except TypeError:
+            raise utils.ObjectDoesNotExistError(
+                f'Appointment {self.appointment_id} could not be found in Dynamodb',
+                details={
+                    'appointment': self.as_dict(),
+                    'correlation_id': self._correlation_id,
+                }
+            )
+        del item['appointment_type']
+        self.__dict__.update(item)
+        self.appointment_type.from_dict(item_app_type)
+
+    def get_appointment_item_from_ddb(self):
+        return self._ddb_client.get_item(
+            table_name=APPOINTMENTS_TABLE,
+            key=self.appointment_id
+        )
+
+    def get_participant_user_id(self):
+        if self.participant_user_id is None:
+            if self.participant_email is None:
+                self.get_appointment_info_from_acuity()
+            self.participant_user_id = self._core_api_client.get_user_id_by_email(
+                email=self.participant_email
+            )
+        return self.participant_user_id
+
+    def update_link(self, link):
+        self.link = link
+        result = self._ddb_client.update_item(
+            table_name=APPOINTMENTS_TABLE,
+            key=self.appointment_id,
+            name_value_pairs={
+                'link': self.link
+            }
+        )
+        assert result['ResponseMetadata']['HTTPStatusCode'] == HTTPStatus.OK, \
+            f'Call to ddb client update_item method failed with response {result}'
+        return result['ResponseMetadata']['HTTPStatusCode']
+
+    def update_latest_participant_notification(self):
+        self.latest_participant_notification = str(utils.now_with_tz())
+        result = self._ddb_client.update_item(
+            table_name=APPOINTMENTS_TABLE,
+            key=self.appointment_id,
+            name_value_pairs={
+                'latest_participant_notification': self.latest_participant_notification
+            }
+        )
+        assert result['ResponseMetadata']['HTTPStatusCode'] == HTTPStatus.OK, \
+            f'Call to ddb client update_item method failed with response {result}'
+        return result['ResponseMetadata']['HTTPStatusCode']
+
+    def get_appointment_info_from_acuity(self, force_refresh=False):
+        if (self.acuity_info is None) or (force_refresh is True):
+            self.acuity_info = self._acuity_client.get_appointment_by_id(self.appointment_id)
+            self.appointment_type.type_id = str(self.acuity_info['appointmentTypeID'])
+            self.calendar_name = self.acuity_info['calendar']
+            self.calendar_id = str(self.acuity_info['calendarID'])
+            self.participant_email = self.acuity_info['email']
+            self.appointment_date = self.acuity_info['datetime'].split('T')[0]
+        return self.acuity_info
+
+
 class AppointmentNotifier:
     calendar_table = 'Calendars'
 
