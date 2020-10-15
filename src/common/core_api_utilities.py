@@ -25,6 +25,7 @@ class CoreApiClient:
 
     def __init__(self, correlation_id=None):
         self.correlation_id = correlation_id
+        self.logger = utils.get_logger()
         env_name = utils.get_environment_name()
         if env_name == 'prod':
             self.base_url = 'https://api.thiscovery.org/'
@@ -37,6 +38,16 @@ class CoreApiClient:
         assert result['statusCode'] == HTTPStatus.OK, f'Call to core API returned error: {result}'
         return json.loads(result['body'])['id']
 
+    def get_projects(self):
+        result = utils.aws_get('v1/project', self.base_url, params={})
+        assert result['statusCode'] == HTTPStatus.OK, f'Call to core API returned error: {result}'
+        return json.loads(result['body'])
+
+    def get_userprojects(self, user_id):
+        result = utils.aws_get('v1/userproject', self.base_url, params={'user_id': user_id})
+        assert result['statusCode'] == HTTPStatus.OK, f'Call to core API returned error: {result}'
+        return json.loads(result['body'])
+
     def get_user_task_id_for_project(self, user_id, project_task_id):
         result = utils.aws_get('v1/usertask', self.base_url, params={'user_id': user_id})
         assert result['statusCode'] == HTTPStatus.OK, f'Call to core API returned error: {result}'
@@ -46,5 +57,27 @@ class CoreApiClient:
 
     def set_user_task_completed(self, user_task_id):
         result = utils.aws_request('PUT', 'v1/user-task-completed', self.base_url, params={'user_task_id': user_task_id})
+        assert result['statusCode'] == HTTPStatus.NO_CONTENT, f'Call to core API returned error: {result}'
+        return result
+
+    def send_transactional_email(self, template_name, **kwargs):
+        """
+        Calls the send-transactional-email endpoint. Appends 'NA_' to template_name
+        if running_unit_tests() returns True to prevent unittest emails being sent
+
+        Args:
+            template_name:
+            **kwargs:
+
+        Returns:
+        """
+        email_dict = {
+            "template_name": template_name,
+            **kwargs
+        }
+        if utils.running_unit_tests():
+            email_dict['template_name'] = f'NA_{template_name}'
+        self.logger.debug("Transactional email API call", extra={'email_dict': email_dict})
+        result = utils.aws_post('v1/send-transactional-email', self.base_url, request_body=json.dumps(email_dict))
         assert result['statusCode'] == HTTPStatus.NO_CONTENT, f'Call to core API returned error: {result}'
         return result

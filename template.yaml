@@ -123,6 +123,13 @@ Resources:
                 type: aws_proxy
                 uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InterviewAppointment.Arn}/invocations
               responses: {}
+          /v1/set-interview-url:
+            put:
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SetInterviewUrl.Arn}/invocations
+              responses: {}
       EndpointConfiguration: REGIONAL
       TracingEnabled: true
   AppointmentTypes:
@@ -149,7 +156,7 @@ Resources:
       Handler: appointments.interview_appointment_api
       Runtime: python3.7
       MemorySize: !Ref EnvConfiglambdamemorysizeAsString
-      Timeout: 10
+      Timeout: 20
       Tracing: Active
       Policies:
         - AWSXrayWriteOnlyAccess
@@ -159,6 +166,10 @@ Resources:
             SecretArn: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/${EnvironmentTagName}/*
         - SNSPublishMessagePolicy:
             TopicName: !GetAtt InterviewNotifications.TopicName
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Appointments
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Calendars
       Events:
         InterviewsApiPOSTv1interviewappointment:
           Type: Api
@@ -173,6 +184,130 @@ Resources:
           SECRETS_NAMESPACE: !Sub /${EnvironmentTagName}/
           TOPIC_NAME: !GetAtt InterviewNotifications.TopicName
           TOPIC_ARN: !Ref InterviewNotifications
+          TABLE_NAME_2: !Ref Appointments
+          TABLE_ARN_2: !GetAtt Appointments.Arn
+          TABLE_NAME_3: !Ref Calendars
+          TABLE_ARN_3: !GetAtt Calendars.Arn
+  Appointments:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: appointment_date
+          AttributeType: S
+        - AttributeName: latest_participant_notification
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      TableName: !Sub ${AWS::StackName}-Appointments
+      GlobalSecondaryIndexes:
+        - IndexName: reminders-index
+          KeySchema:
+            - AttributeName: appointment_date
+              KeyType: HASH
+            - AttributeName: latest_participant_notification
+              KeyType: RANGE
+          Projection:
+            ProjectionType: KEYS_ONLY
+  SendAppointmentReminder:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-SendAppointmentReminder
+      Description: !Sub
+        - Stack ${StackTagName} Environment ${EnvironmentTagName} Function ${ResourceName}
+        - ResourceName: SendAppointmentReminder
+      CodeUri: src
+      Handler: appointments.interview_reminder_handler
+      Runtime: python3.7
+      MemorySize: !Ref EnvConfiglambdamemorysizeAsString
+      Timeout: !Ref EnvConfiglambdatimeoutAsString
+      Tracing: Active
+      Policies:
+        - AWSXrayWriteOnlyAccess
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Appointments
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/${EnvironmentTagName}/*
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Appointments
+          TABLE_ARN: !GetAtt Appointments.Arn
+          SECRETS_NAMESPACE: !Sub /${EnvironmentTagName}/
+      Events:
+        Timer3:
+          Type: Schedule
+          Properties:
+            Schedule: 'cron(0 8,14 * * ? *)'
+          Metadata:
+            StackeryName: ReminderTimer
+  SetInterviewUrl:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-SetInterviewUrl
+      Description: !Sub
+        - Stack ${StackTagName} Environment ${EnvironmentTagName} Function ${ResourceName}
+        - ResourceName: SetInterviewUrl
+      CodeUri: src
+      Handler: appointments.set_interview_url_api
+      Runtime: python3.7
+      MemorySize: !Ref EnvConfiglambdamemorysizeAsString
+      Timeout: 20
+      Tracing: Active
+      Policies:
+        - AWSXrayWriteOnlyAccess
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Appointments
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/${EnvironmentTagName}/*
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Calendars
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Appointments
+          TABLE_ARN: !GetAtt Appointments.Arn
+          SECRETS_NAMESPACE: !Sub /${EnvironmentTagName}/
+          TABLE_NAME_2: !Ref Calendars
+          TABLE_ARN_2: !GetAtt Calendars.Arn
+      Events:
+        InterviewsApiPUTv1setinterviewurl:
+          Type: Api
+          Properties:
+            Path: /v1/set-interview-url
+            Method: PUT
+            RestApiId: !Ref InterviewsApi
+  DeleteOldAppointments:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-DeleteOldAppointments
+      Description: !Sub
+        - Stack ${StackTagName} Environment ${EnvironmentTagName} Function ${ResourceName}
+        - ResourceName: DeleteOldAppointments
+      CodeUri: src
+      Handler: clean.delete_old_appointments
+      Runtime: python3.7
+      MemorySize: !Ref EnvConfiglambdamemorysizeAsString
+      Timeout: !Ref EnvConfiglambdatimeoutAsString
+      Tracing: Active
+      Policies:
+        - AWSXrayWriteOnlyAccess
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Appointments
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Appointments
+          TABLE_ARN: !GetAtt Appointments.Arn
+      Events:
+        Timer4:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 day)
+          Metadata:
+            StackeryName: ClearAppTimer
 Parameters:
   StackTagName:
     Type: String

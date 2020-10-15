@@ -54,15 +54,15 @@ class CalendarBlocker:
         return [(x['id'], x['label']) for x in calendars]
 
     def block_upcoming_weekend(self, calendar_id):
-        next_saturday_date = next_weekday(5)
-        block_start = datetime.datetime.combine(
-            next_saturday_date,
-            datetime.time(hour=0, minute=0)
-        )
         next_monday_date = next_weekday(0)
         block_end = datetime.datetime.combine(
             next_monday_date,
             datetime.time(hour=12, minute=0)
+        )
+        saturday_before_next_monday = next_monday_date - datetime.timedelta(days=2)
+        block_start = datetime.datetime.combine(
+            saturday_before_next_monday,
+            datetime.time(hour=0, minute=0)
         )
         return self.acuity_client.post_block(calendar_id, block_start, block_end)
 
