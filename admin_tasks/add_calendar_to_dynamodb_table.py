@@ -3,10 +3,10 @@ import sys
 from http import HTTPStatus
 from pprint import pprint
 
-import src.common.utilities as utils
+import thiscovery_lib.utilities as utils
 from src.common.acuity_utilities import AcuityClient
-from src.common.dynamodb_utilities import Dynamodb
-from src.main import CalendarBlocker
+from thiscovery_lib.dynamodb_utilities import Dynamodb
+from src.main import CalendarBlocker, STACK_NAME
 
 
 def main():
@@ -14,7 +14,7 @@ def main():
     if not calendar_name:
         sys.exit()
     acuity_client = AcuityClient()
-    ddb_client = Dynamodb()
+    ddb_client = Dynamodb(stack_name=STACK_NAME)
     blocker = CalendarBlocker(ddb_client.logger, None)
     acuity_calendars = acuity_client.get_calendars()
     target_calendar = None

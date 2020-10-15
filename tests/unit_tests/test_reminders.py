@@ -15,6 +15,8 @@
 #   A copy of the GNU Affero General Public License is available in the
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
+import local.secrets  # load env variables
+import local.dev_config  # load env variables
 import copy
 import datetime
 import time
@@ -26,10 +28,11 @@ from pprint import pprint
 import src.appointments as app
 import src.reminders as rem
 
-import common.utilities as utils
+import thiscovery_lib.utilities as utils
 import tests.test_data as test_data
 import tests.testing_utilities as test_utils
-from src.common.dynamodb_utilities import Dynamodb
+import thiscovery_dev_tools.testing_tools as test_tools
+from thiscovery_lib.dynamodb_utilities import Dynamodb
 
 
 TEST_DATETIME_1 = datetime.datetime(
@@ -51,7 +54,7 @@ TEST_DATETIME_2 = datetime.datetime(
 )
 
 
-class RemindersTestCase(test_utils.BaseTestCase, test_utils.DdbMixin):
+class RemindersTestCase(test_tools.BaseTestCase, test_utils.DdbMixin):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

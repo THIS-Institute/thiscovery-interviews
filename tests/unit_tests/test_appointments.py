@@ -15,6 +15,8 @@
 #   A copy of the GNU Affero General Public License is available in the
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
+import local.dev_config  # sets environment variables
+import local.secrets  # sets environment variables
 import copy
 import datetime
 import json
@@ -24,8 +26,8 @@ from http import HTTPStatus
 from pprint import pprint
 
 import src.appointments as app
-import common.utilities as utils
-import tests.testing_utilities as test_utils
+import thiscovery_lib.utilities as utils
+import thiscovery_dev_tools.testing_tools as test_utils
 from src.common.constants import TEST_TEMPLATES, DEFAULT_TEMPLATES, INTERVIEWER_BOOKING_RESCHEDULING
 from local.secrets import TESTER_EMAIL_MAP
 from tests.test_data import td

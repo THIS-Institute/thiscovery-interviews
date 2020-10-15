@@ -22,7 +22,7 @@ import requests
 from pprint import pprint
 from simplejson.errors import JSONDecodeError
 
-import common.utilities as utils
+import thiscovery_lib.utilities as utils
 
 
 def response_handler(func):

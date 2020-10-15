@@ -22,12 +22,14 @@ from collections import ChainMap
 from dateutil import parser
 from http import HTTPStatus
 
-import common.utilities as utils
+import thiscovery_lib.utilities as utils
 from common.acuity_utilities import AcuityClient
-from common.constants import APPOINTMENTS_TABLE, APPOINTMENT_TYPES_TABLE, DEFAULT_TEMPLATES
+from common.constants import APPOINTMENTS_TABLE, APPOINTMENT_TYPES_TABLE, DEFAULT_TEMPLATES, STACK_NAME
 from common.core_api_utilities import CoreApiClient
-from common.dynamodb_utilities import Dynamodb
+from thiscovery_lib.dynamodb_utilities import Dynamodb
 from common.emails_api_utilities import EmailsApiClient
+
+
 
 
 class AppointmentType:
@@ -50,7 +52,7 @@ class AppointmentType:
             self._logger = utils.get_logger()
         self._ddb_client = ddb_client
         if ddb_client is None:
-            self._ddb_client = Dynamodb()
+            self._ddb_client = Dynamodb(stack_name=STACK_NAME)
         self._acuity_client = acuity_client
         if acuity_client is None:
             self._acuity_client = AcuityClient(correlation_id=self._correlation_id)
@@ -129,7 +131,7 @@ class AcuityAppointment:
             self._logger = utils.get_logger()
         self._correlation_id = correlation_id
         self._acuity_client = AcuityClient(correlation_id=self._correlation_id)
-        self._ddb_client = Dynamodb()
+        self._ddb_client = Dynamodb(stack_name=STACK_NAME)
         self._core_api_client = CoreApiClient(correlation_id=self._correlation_id)
 
     def __repr__(self):
@@ -250,7 +252,7 @@ class AppointmentNotifier:
         self.correlation_id = correlation_id
         self.ddb_client = ddb_client
         if ddb_client is None:
-            self.ddb_client = Dynamodb()
+            self.ddb_client = Dynamodb(stack_name=STACK_NAME)
 
     def _get_email_template(self, recipient_email, recipient_type, event_type):
         email_domain = 'other'

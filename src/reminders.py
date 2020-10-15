@@ -18,10 +18,10 @@
 import datetime
 import traceback
 
-import common.utilities as utils
+import thiscovery_lib.utilities as utils
 from appointments import AcuityAppointment, AppointmentNotifier
-from common.constants import APPOINTMENTS_TABLE
-from common.dynamodb_utilities import Dynamodb
+from common.constants import APPOINTMENTS_TABLE, STACK_NAME
+from thiscovery_lib.dynamodb_utilities import Dynamodb
 
 
 class RemindersHandler:
@@ -32,7 +32,7 @@ class RemindersHandler:
     """
 
     def __init__(self, logger=None, correlation_id=None):
-        self.ddb_client = Dynamodb()
+        self.ddb_client = Dynamodb(stack_name=STACK_NAME)
         self.correlation_id = correlation_id
         self.target_appointment_ids = self.get_appointments_to_be_reminded()
         self.logger = logger
