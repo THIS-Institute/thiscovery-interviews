@@ -3,11 +3,12 @@ This script populates the Dynamodb AppointmentTypes table with data from Acuity.
 It is intended to be run as an one-off process to facilitate initial setup
 of this stack.
 """
-
+import local.dev_config  # sets env variables
+import local.secrets  # sets env variables
 from pprint import pprint
 from src.appointments import AppointmentType
 from src.common.acuity_utilities import AcuityClient
-from common.utilities import ObjectDoesNotExistError
+from thiscovery_lib.utilities import ObjectDoesNotExistError
 
 
 def main():

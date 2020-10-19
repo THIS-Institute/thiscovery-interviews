@@ -115,7 +115,6 @@ class CalendarBlocker:
             self.blocks_table,
             filter_attr_name='status',
             filter_attr_values=['new'],
-            correlation_id=self.correlation_id
         )
         deleted_blocks_ids = list()
         affected_calendar_names = list()
