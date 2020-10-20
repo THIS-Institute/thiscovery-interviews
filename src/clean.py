@@ -52,7 +52,7 @@ class AppointmentsCleaner:
         return [x['id'] for x in result]
 
     def delete_old_appointments(self):
-        self.ddb_client.batch_delete_items(
+        return self.ddb_client.batch_delete_items(
             table_name=APPOINTMENTS_TABLE,
             keys=self.target_appointment_ids,
         )

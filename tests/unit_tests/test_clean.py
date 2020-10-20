@@ -17,7 +17,9 @@
 #
 import copy
 import datetime
+import os
 import time
+import unittest
 
 from dateutil import parser
 from http import HTTPStatus
@@ -31,7 +33,9 @@ import thiscovery_lib.utilities as utils
 import tests.test_data as test_data
 import tests.testing_utilities as test_utils
 import thiscovery_dev_tools.testing_tools as test_tools
+from src.common.constants import STACK_NAME
 from thiscovery_lib.dynamodb_utilities import Dynamodb
+from thiscovery_lib.lambda_utilities import Lambda
 
 
 TEST_DATETIME_1 = datetime.datetime(
@@ -67,3 +71,13 @@ class AppointmentsCleanerTestCase(test_tools.BaseTestCase, test_utils.DdbMixin):
         self.assertEqual(4, len(appointment_item_keys))
         for i in ac.target_appointment_ids:
             self.assertNotIn(i, appointment_item_keys)
+
+    @unittest.skipUnless(os.environ['TEST_ON_AWS'] == 'True', 'Invokes lambda on AWS')
+    def test_03_delete_old_appointments_lambda_working_on_aws(self):
+        self.clear_appointments_table()
+        lambda_client = Lambda(stack_name=STACK_NAME)
+        response = lambda_client.invoke(
+            function_name='DeleteOldAppointments'
+        )
+        self.assertNotIn('FunctionError', response.keys())
+        self.assertEqual(list(), response['Payload'])
