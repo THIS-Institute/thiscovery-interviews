@@ -30,8 +30,6 @@ from thiscovery_lib.dynamodb_utilities import Dynamodb
 from common.emails_api_utilities import EmailsApiClient
 
 
-
-
 class AppointmentType:
     """
     Represents an Acuity appointment type with additional attributes
