@@ -19,7 +19,9 @@ import local.secrets  # load env variables
 import local.dev_config  # load env variables
 import copy
 import datetime
+import os
 import time
+import unittest
 
 from dateutil import parser
 from http import HTTPStatus
@@ -32,7 +34,8 @@ import thiscovery_lib.utilities as utils
 import tests.test_data as test_data
 import tests.testing_utilities as test_utils
 import thiscovery_dev_tools.testing_tools as test_tools
-from thiscovery_lib.dynamodb_utilities import Dynamodb
+from src.common.constants import STACK_NAME
+from thiscovery_lib.lambda_utilities import Lambda
 
 
 TEST_DATETIME_1 = datetime.datetime(
@@ -150,3 +153,13 @@ class RemindersTestCase(test_tools.BaseTestCase, test_utils.DdbMixin):
             table_name_verbatim=True,
         )
         self.assertEqual(list(), notifications)
+
+    @unittest.skipUnless(os.environ['TEST_ON_AWS'] == 'True', 'Invokes lambda on AWS')
+    def test_send_appointment_reminder_lambda_working_on_aws(self):
+        self.clear_appointments_table()
+        lambda_client = Lambda(stack_name=STACK_NAME)
+        response = lambda_client.invoke(
+            function_name='SendAppointmentReminder'
+        )
+        self.assertNotIn('FunctionError', response.keys())
+        self.assertEqual(list(), response['Payload'])

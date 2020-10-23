@@ -52,10 +52,20 @@ class AppointmentsCleaner:
         return [x['id'] for x in result]
 
     def delete_old_appointments(self):
-        self.ddb_client.batch_delete_items(
-            table_name=APPOINTMENTS_TABLE,
-            keys=self.target_appointment_ids,
-        )
+        results = list()
+        for app_id in self.target_appointment_ids:
+            result = self.ddb_client.delete_item(
+                table_name=APPOINTMENTS_TABLE,
+                key=app_id,
+            )
+            results.append(result['ResponseMetadata']['HTTPStatusCode'])
+        return results
+
+        # this is more efficient than the for loop used above but doesn't return anything, so worse for testing
+        # return self.ddb_client.batch_delete_items(
+        #     table_name=APPOINTMENTS_TABLE,
+        #     keys=self.target_appointment_ids,
+        # )
 
 
 @utils.lambda_wrapper
