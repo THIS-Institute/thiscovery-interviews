@@ -1,3 +1,5 @@
+import local.dev_config  # env variables
+import local.secrets  # env variables
 import sys
 
 from http import HTTPStatus
@@ -6,7 +8,7 @@ from pprint import pprint
 import thiscovery_lib.utilities as utils
 from src.common.acuity_utilities import AcuityClient
 from thiscovery_lib.dynamodb_utilities import Dynamodb
-from src.main import CalendarBlocker, STACK_NAME
+from src.main import STACK_NAME
 
 
 def main():
@@ -15,8 +17,8 @@ def main():
         sys.exit()
     acuity_client = AcuityClient()
     ddb_client = Dynamodb(stack_name=STACK_NAME)
-    blocker = CalendarBlocker(ddb_client.logger, None)
     acuity_calendars = acuity_client.get_calendars()
+    pprint(acuity_calendars)
     target_calendar = None
     for c in acuity_calendars:
         if c['name'] == calendar_name:
