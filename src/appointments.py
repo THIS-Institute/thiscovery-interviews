@@ -618,22 +618,39 @@ class AcuityEvent:
         thiscovery_team_notification_result = None
         participant_and_researchers_notification_results = None
         if original_booking_info['calendar_id'] == self.appointment.calendar_id:
-            participant_and_researchers_notification_results = self._notify_participant_and_researchers(event_type='rescheduling')
+            if not self.appointment.appointment_type.has_link:
+                participant_and_researchers_notification_results = self._notify_participant_and_researchers(event_type='rescheduling')
+            else:
+                if self.appointment.link:
+                    participant_and_researchers_notification_results = self._notify_participant_and_researchers(event_type='rescheduling')
+                else:
+                    self.logger.debug(
+                        'Appointment rescheduled before interview link was generated. '
+                        'Participant will be notified once link is received',
+                        extra={
+                            'appointment_dict': self.appointment.as_dict(),
+                            'correlation_id': self.correlation_id,
+                        }
+                    )
         else:
             thiscovery_team_notification_result = self.notify_thiscovery_team()
         return storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results
 
     def process(self):
+        """
+        Returns: Tuple containing:
+            storing_result,
+            thiscovery_team_notification_result,
+            participant_and_researchers_notification_results
+        """
         if self.event_type == 'scheduled':
-            storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results = self._process_booking()
+            return self._process_booking()
         elif self.event_type == 'canceled':
-            storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results = self._process_cancellation()
+            return self._process_cancellation()
         elif self.event_type == 'rescheduled':
-            storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results = self._process_rescheduling()
+            return self._process_rescheduling()
         else:
             raise NotImplementedError(f'Processing of a {self.event_type} appointment has not been implemented')
-
-        return storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results
 
 
 def check_appointment_in_the_past(appointment_instance):
@@ -694,6 +711,9 @@ def set_interview_url(appointment_id, interview_url, event_type, logger=None, co
 @utils.lambda_wrapper
 @utils.api_error_handler
 def interview_appointment_api(event, context):
+    """
+    Listens to events posted by Acuity via webhooks
+    """
     logger = event['logger']
     correlation_id = event['correlation_id']
     acuity_event = event['body']

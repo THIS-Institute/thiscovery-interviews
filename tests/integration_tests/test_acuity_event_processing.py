@@ -43,8 +43,8 @@ class TestAcuityEventProcessing(test_tools.BaseTestCase, test_utils.DdbMixin):
     def setUp(self):
         self.ddb_client.delete_all(table_name=self.notifications_table, table_name_verbatim=True)
 
-    def common_routine(self, appointment_id, calendar_id, appointment_type_id):
-        event_body = f"action=appointment.scheduled" \
+    def common_routine(self, appointment_id, calendar_id, appointment_type_id, event_type='scheduled'):
+        event_body = f"action=appointment.{event_type}" \
                      f"&id={appointment_id}" \
                      f"&calendarID={calendar_id}" \
                      f"&appointmentTypeID={appointment_type_id}"
@@ -57,15 +57,16 @@ class TestAcuityEventProcessing(test_tools.BaseTestCase, test_utils.DdbMixin):
         self.assertEqual(HTTPStatus.OK, result['statusCode'])
         return result
 
-    def common_routine_with_notifications(self, appointment_id, calendar_id, appointment_type_id, expected_notifications):
-        self.common_routine(appointment_id, calendar_id, appointment_type_id)
+    def common_routine_with_notifications(self, appointment_id, calendar_id, appointment_type_id,
+                                          expected_notifications, event_type='scheduled'):
+        self.common_routine(appointment_id, calendar_id, appointment_type_id, event_type=event_type)
 
         # check notifications that were created in notifications table
         notifications = self.ddb_client.scan(
             table_name=self.notifications_table,
             table_name_verbatim=True,
         )
-        self.assertEqual(3, len(notifications))
+        self.assertEqual(len(expected_notifications), len(notifications))
         attributes_to_ignore = [
             'created',
             'id',
@@ -371,3 +372,295 @@ class TestAcuityEventProcessing(test_tools.BaseTestCase, test_utils.DdbMixin):
                 except KeyError:
                     pass
         self.assertCountEqual(expected_notifications, notifications)
+
+    def test_06_process_rescheduling_same_calendar_no_link_ok(self):
+        common_custom_properties = {
+            'appointment_date': 'Thursday 02 October 2025',
+            'appointment_duration': '45 minutes',
+            'appointment_time': '13:15',
+            'interviewer_first_name': 'André',
+            'project_short_name': 'PSFU-05-pub-act',
+            'user_first_name': 'Clive'
+        }
+        researcher_custom_properties = {
+            **common_custom_properties,
+            'anon_project_specific_user_id': '64cdc867-e53d-40c9-adda-f0271bcf1063',
+            'appointment_type_name': 'Development appointment - no link',
+            'interviewer_url': 'Participant did not provide a phone number. '
+                               'Please contact them by email to obtain a contact number',
+            'user_email': 'clive@email.co.uk',
+            'user_last_name': 'Cresswell'
+        }
+        fred_notification = {
+            'details': {
+                'template_name': 'NA_interview_rescheduled_researcher',
+                'to_recipient_email': 'fred@email.co.uk',
+                'custom_properties': researcher_custom_properties
+            },
+            'label': 'NA_interview_rescheduled_researcher_fred@email.co.uk',
+            'type': 'transactional-email',
+        }
+        tester_notification = {
+            'details': {
+                'template_name': 'NA_interview_rescheduled_researcher',
+                'to_recipient_email': TESTER_EMAIL_MAP[self.env_name],
+                'custom_properties': researcher_custom_properties
+            },
+            'label': f'NA_interview_rescheduled_researcher_{TESTER_EMAIL_MAP[self.env_name]}',
+            'type': 'transactional-email',
+        }
+        participant_notification = {
+            'details': {
+                'custom_properties': {
+                    **common_custom_properties,
+                    'appointment_reschedule_url': 'https://app.acuityscheduling.com/schedule.php'
+                                                  '?owner=19499339&action=appt&id%5B%5D=9edb5e9373f203a9398073e132eb0e7a',
+                    'interview_url': 'We will call you on the phone number provided',
+                },
+                'template_name': 'NA_interview_rescheduled_web_participant',
+                'to_recipient_email': 'clive@email.co.uk'
+            },
+            'label': 'NA_interview_rescheduled_web_participant_clive@email.co.uk',
+            'type': 'transactional-email'
+        }
+        expected_notifications = [
+            fred_notification,
+            tester_notification,
+            participant_notification,
+        ]
+        # create original booking
+        self.common_routine(
+            appointment_id=td['dev_appointment_no_link_id'],
+            calendar_id=td['calendar_id'],
+            appointment_type_id=td['dev_appointment_no_link_type_id'],
+        )
+        self.clear_notifications_table()
+
+        # test rescheduling routine
+        self.common_routine_with_notifications(
+            appointment_id=td['dev_appointment_no_link_id'],
+            calendar_id=td['calendar_id'],
+            appointment_type_id=td['dev_appointment_no_link_type_id'],
+            expected_notifications=expected_notifications,
+            event_type='rescheduled'
+        )
+
+    def test_07_process_rescheduling_same_calendar_with_link_already_generated(self):
+        # put original booking info in ddb
+        original_booking_ddb_item = {
+            "acuity_info": {
+                "addonIDs": [],
+                "amountPaid": "0.00",
+                "appointmentTypeID": 14792299,
+                "calendar": "André",
+                "calendarID": 4038206,
+                "calendarTimezone": "Europe/London",
+                "canceled": False,
+                "canClientCancel": True,
+                "canClientReschedule": True,
+                "category": "_Tech development",
+                "certificate": None,
+                "classID": None,
+                "confirmationPage": "https://app.acuityscheduling.com/schedule.php?owner=19499339&action=appt&id%5B%5D=9d20ba8fc7801ff9bc599861c72937ca",
+                "date": "June 30, 2025",
+                "dateCreated": "June 29, 2020",
+                "datetime": "2025-06-30T10:15:00+0100",
+                "datetimeCreated": "2020-06-29T16:45:48-0500",
+                "duration": "30",
+                "email": "clive@email.co.uk",
+                "endTime": "10:45",
+                "firstName": "Clive",
+                "forms": [],
+                "formsText": "Name: Clive Cresswell\nPhone: \nEmail: clive@email.co.uk\n",
+                "id": 399682887,
+                "isVerified": False,
+                "labels": None,
+                "lastName": "Cresswell",
+                "location": "",
+                "notes": "DO NOT DELETE. Appointment used for automated testing.",
+                "paid": "no",
+                "phone": "",
+                "price": "0.00",
+                "priceSold": "0.00",
+                "scheduledBy": "REDACTED",
+                "time": "10:15",
+                "timezone": "Europe/London",
+                "type": "Test appointment"
+            },
+            "appointment_date": "2025-06-30",
+            "appointment_id": "399682887",
+            "appointment_type": {
+                "category": "Tech development",
+                "details": None,
+                "has_link": True,
+                "id": "14792299",
+                "name": "Test appointment",
+                "project_task_id": "273b420e-09cb-419c-8b57-b393595dba78",
+                "send_notifications": True,
+                "templates": None,
+                "type": "acuity-appointment-type",
+                "type_id": "14792299"
+            },
+            "calendar_id": "4038206",
+            "calendar_name": "André",
+            "created": "2020-11-25 23:21:23.862092+00:00",
+            # "details": None,
+            # "id": "399682887",
+            "latest_participant_notification": "2020-11-25 23:23:39.899191+00:00",
+            "link": "https://meet.myinterview.com/3c52b95f-4a31-454b-8e0a-69061f424ce5",
+            "modified": "2020-11-25 23:23:39.901344+00:00",
+            "participant_email": "clive@email.co.uk",
+            "participant_user_id": None,
+            # "type": "acuity-appointment"
+        }
+        self.ddb_client.put_item(
+            table_name=app.APPOINTMENTS_TABLE,
+            key="399682887",
+            item_type="acuity-appointment",
+            item_details=None,
+            item=original_booking_ddb_item
+        )
+
+        common_custom_properties = {
+            'appointment_date': 'Monday 30 June 2025',
+            'appointment_duration': '30 minutes',
+            'appointment_time': '10:15',
+            'interviewer_first_name': 'André',
+            'project_short_name': 'PSFU-05-pub-act',
+            'user_first_name': 'Clive'
+        }
+        researcher_custom_properties = {
+            **common_custom_properties,
+            'anon_project_specific_user_id': '64cdc867-e53d-40c9-adda-f0271bcf1063',
+            'appointment_type_name': 'Test appointment',
+            "interviewer_url": "https://meet.myinterview.com/5f64ccbd-b2e3-44e9-aed2-53c55cca4ef5",
+            'user_email': 'clive@email.co.uk',
+            'user_last_name': 'Cresswell'
+        }
+        fred_notification = {
+            'details': {
+                'template_name': 'NA_interview_rescheduled_researcher',
+                'to_recipient_email': 'fred@email.co.uk',
+                'custom_properties': researcher_custom_properties
+            },
+            'label': 'NA_interview_rescheduled_researcher_fred@email.co.uk',
+            'type': 'transactional-email',
+        }
+        tester_notification = {
+            'details': {
+                'template_name': 'NA_interview_rescheduled_researcher',
+                'to_recipient_email': TESTER_EMAIL_MAP[self.env_name],
+                'custom_properties': researcher_custom_properties
+            },
+            'label': f'NA_interview_rescheduled_researcher_{TESTER_EMAIL_MAP[self.env_name]}',
+            'type': 'transactional-email',
+        }
+        participant_notification = {
+            'details': {
+                'custom_properties': {
+                    **common_custom_properties,
+                    'appointment_reschedule_url': 'https://app.acuityscheduling.com/schedule.php?owner=19499339&action=appt&id%5B%5D=9d20ba8fc7801ff9bc599861c72937ca',
+                    "interview_url": "<a href=\"https://meet.myinterview.com/3c52b95f-4a31-454b-8e0a-69061f424ce5\" style=\"color:#dd0031\" rel=\"noopener\">https://meet.myinterview.com/3c52b95f-4a31-454b-8e0a-69061f424ce5</a>",
+                },
+                'template_name': 'NA_interview_rescheduled_web_participant',
+                'to_recipient_email': 'clive@email.co.uk'
+            },
+            'label': 'NA_interview_rescheduled_web_participant_clive@email.co.uk',
+            'type': 'transactional-email'
+        }
+        expected_notifications = [
+            fred_notification,
+            tester_notification,
+            participant_notification,
+        ]
+        self.common_routine_with_notifications(
+            appointment_id=td['test_appointment_id'],
+            calendar_id=td['calendar_id'],
+            appointment_type_id=td['test_appointment_type_id'],
+            expected_notifications=expected_notifications,
+            event_type='rescheduled',
+        )
+
+    def test_08_process_rescheduling_same_calendar_with_link_not_generated_yet(self):
+        # put original booking info in ddb
+        original_booking_ddb_item = {
+            "acuity_info": {
+                "addonIDs": [],
+                "amountPaid": "0.00",
+                "appointmentTypeID": 14792299,
+                "calendar": "André",
+                "calendarID": 4038206,
+                "calendarTimezone": "Europe/London",
+                "canceled": False,
+                "canClientCancel": True,
+                "canClientReschedule": True,
+                "category": "_Tech development",
+                "certificate": None,
+                "classID": None,
+                "confirmationPage": "https://app.acuityscheduling.com/schedule.php?owner=19499339&action=appt&id%5B%5D=9d20ba8fc7801ff9bc599861c72937ca",
+                "date": "June 30, 2025",
+                "dateCreated": "June 29, 2020",
+                "datetime": "2025-06-30T10:15:00+0100",
+                "datetimeCreated": "2020-06-29T16:45:48-0500",
+                "duration": "30",
+                "email": "clive@email.co.uk",
+                "endTime": "10:45",
+                "firstName": "Clive",
+                "forms": [],
+                "formsText": "Name: Clive Cresswell\nPhone: \nEmail: clive@email.co.uk\n",
+                "id": 399682887,
+                "isVerified": False,
+                "labels": None,
+                "lastName": "Cresswell",
+                "location": "",
+                "notes": "DO NOT DELETE. Appointment used for automated testing.",
+                "paid": "no",
+                "phone": "",
+                "price": "0.00",
+                "priceSold": "0.00",
+                "scheduledBy": "REDACTED",
+                "time": "10:15",
+                "timezone": "Europe/London",
+                "type": "Test appointment"
+            },
+            "appointment_date": "2025-06-30",
+            "appointment_id": "399682887",
+            "appointment_type": {
+                "category": "Tech development",
+                "details": None,
+                "has_link": True,
+                "id": "14792299",
+                "name": "Test appointment",
+                "project_task_id": "273b420e-09cb-419c-8b57-b393595dba78",
+                "send_notifications": True,
+                "templates": None,
+                "type": "acuity-appointment-type",
+                "type_id": "14792299"
+            },
+            "calendar_id": "4038206",
+            "calendar_name": "André",
+            "created": "2020-11-25 23:21:23.862092+00:00",
+            # "details": None,
+            # "id": "399682887",
+            "latest_participant_notification": "2020-11-25 23:23:39.899191+00:00",
+            "link": None,
+            "modified": "2020-11-25 23:23:39.901344+00:00",
+            "participant_email": "clive@email.co.uk",
+            "participant_user_id": None,
+            # "type": "acuity-appointment"
+        }
+        self.ddb_client.put_item(
+            table_name=app.APPOINTMENTS_TABLE,
+            key="399682887",
+            item_type="acuity-appointment",
+            item_details=None,
+            item=original_booking_ddb_item
+        )
+
+        self.common_routine_with_notifications(
+            appointment_id=td['test_appointment_id'],
+            calendar_id=td['calendar_id'],
+            appointment_type_id=td['test_appointment_type_id'],
+            expected_notifications=list(),
+            event_type='rescheduled',
+        )
