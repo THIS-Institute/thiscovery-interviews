@@ -37,7 +37,7 @@ def response_handler(func):
         else:
             logger = utils.get_logger()
             logger.error(f'Acuity API call failed with response: {response}', extra={'response.content': response.content})
-            raise utils.DetailedValueError(f'Acuity API call failed with response: {response}', details={'response': response})
+            raise utils.DetailedValueError(f'Acuity API call failed with response: {response}', details={'response': response.content})
     return wrapper
 
 
