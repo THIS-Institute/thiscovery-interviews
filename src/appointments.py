@@ -18,16 +18,18 @@
 import datetime
 import json
 import re
+import thiscovery_lib.utilities as utils
+
 from collections import ChainMap
 from dateutil import parser
 from http import HTTPStatus
-
-import thiscovery_lib.utilities as utils
-from common.acuity_utilities import AcuityClient
-from common.constants import APPOINTMENTS_TABLE, APPOINTMENT_TYPES_TABLE, DEFAULT_TEMPLATES, STACK_NAME
 from thiscovery_lib.core_api_utilities import CoreApiClient
 from thiscovery_lib.dynamodb_utilities import Dynamodb
-from common.emails_api_utilities import EmailsApiClient
+from thiscovery_lib.emails_api_utilities import EmailsApiClient
+
+
+from common.acuity_utilities import AcuityClient
+from common.constants import APPOINTMENTS_TABLE, APPOINTMENT_TYPES_TABLE, DEFAULT_TEMPLATES, STACK_NAME
 
 
 class AppointmentType:
