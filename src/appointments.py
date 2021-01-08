@@ -18,16 +18,18 @@
 import datetime
 import json
 import re
+import thiscovery_lib.utilities as utils
+
 from collections import ChainMap
 from dateutil import parser
 from http import HTTPStatus
-
-import thiscovery_lib.utilities as utils
-from common.acuity_utilities import AcuityClient
-from common.constants import APPOINTMENTS_TABLE, APPOINTMENT_TYPES_TABLE, DEFAULT_TEMPLATES, STACK_NAME
 from thiscovery_lib.core_api_utilities import CoreApiClient
 from thiscovery_lib.dynamodb_utilities import Dynamodb
-from common.emails_api_utilities import EmailsApiClient
+from thiscovery_lib.emails_api_utilities import EmailsApiClient
+
+
+from common.acuity_utilities import AcuityClient
+from common.constants import APPOINTMENTS_TABLE, APPOINTMENT_TYPES_TABLE, DEFAULT_TEMPLATES, STACK_NAME
 
 
 class AppointmentType:
@@ -735,6 +737,9 @@ def set_interview_url_api(event, context):
         'body': body,
         'correlation_id': correlation_id
     })
+    alarm_test = body.get('brew_coffee')
+    if alarm_test:
+        raise utils.DeliberateError('Coffee is not available', details={})
     update_result, notification_results = set_interview_url(
         appointment_id=body['appointment_id'],
         interview_url=body['interview_url'],
