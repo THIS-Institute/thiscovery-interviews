@@ -17,12 +17,17 @@
 #
 import local.dev_config  # set env variables
 import local.secrets  # set env variables
-import src.appointments as app
+import copy
 import thiscovery_lib.utilities as utils
+import thiscovery_dev_tools.testing_tools as test_utils
+
+import src.appointments as app
 import tests.test_data as test_data
 from thiscovery_lib.dynamodb_utilities import Dynamodb
 from local.dev_config import TEST_ON_AWS
 from src.common.constants import STACK_NAME
+
+from local.secrets import TESTER_EMAIL_MAP
 
 
 class DdbMixin:
@@ -79,3 +84,94 @@ class DdbMixin:
                                      'means Appointment table already contains '
                                      'the required test data; aborting this methid', extra={})
                     break
+
+
+class AppointmentsTestCase(test_utils.BaseTestCase):
+    """
+    Base class with data and methods for testing appointments.py
+    """
+    test_data = test_data.td
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.aa1 = app.AcuityAppointment(
+            appointment_id=cls.test_data['test_appointment_id'],
+            logger=cls.logger,
+        )
+
+        # test appointments default to have links and require notifications
+        cls.at1 = app.AppointmentType(
+            ddb_client=cls.aa1._ddb_client,
+            acuity_client=cls.aa1._acuity_client,
+            logger=cls.logger,
+        )
+        cls.at1.from_dict({
+            'type_id': cls.test_data['test_appointment_type_id'],
+            'has_link': True,
+            'send_notifications': True,
+            'project_task_id': cls.test_data['project_task_id'],
+        })
+        cls.at1.get_appointment_type_info_from_acuity()
+        cls.at1.ddb_dump(update_allowed=True)
+
+        # dev appointments default to not have links and not require notifications
+        cls.at2 = app.AppointmentType(
+            ddb_client=cls.aa1._ddb_client,
+            acuity_client=cls.aa1._acuity_client,
+            logger=cls.logger,
+        )
+        cls.at2.from_dict({
+            'type_id': cls.test_data['dev_appointment_type_id'],
+            'has_link': False,
+            'send_notifications': False,
+            'project_task_id': cls.test_data['project_task_id'],
+        })
+        cls.at2.get_appointment_type_info_from_acuity()
+        cls.at2.ddb_dump(update_allowed=True)
+
+        cls.clear_appointments_table()
+
+    @classmethod
+    def clear_appointments_table(cls):
+        cls.aa1._ddb_client.delete_all(
+            table_name=app.APPOINTMENTS_TABLE,
+        )
+
+    @classmethod
+    def populate_calendars_table(cls):
+        calendar1 = {
+            "block_monday_morning": True,
+            "details": {
+                "description": "",
+                "email": "",
+                "id": 4038206,
+                "image": False,
+                "location": "",
+                "name": "André",
+                "thumbnail": False,
+                "timezone": "Europe/London"
+            },
+            "emails_to_notify": [
+                TESTER_EMAIL_MAP[utils.get_environment_name()],
+                "fred@email.co.uk"
+            ],
+            "id": "4038206",
+            "label": "André",
+        }
+        calendar2 = copy.deepcopy(calendar1)
+        calendar2['id'] = "3887437"
+        calendar2['details']['id'] = 3887437
+        for calendar in [calendar1, calendar2]:
+            calendar_details = calendar['details']
+            del calendar['details']
+            try:
+                cls.aa1._ddb_client.put_item(
+                    table_name=app.AppointmentNotifier.calendar_table,
+                    key=calendar['id'],
+                    item_type="acuity-calendar",
+                    item_details=calendar_details,
+                    item=calendar
+                )
+            except utils.DetailedValueError:
+                pass
