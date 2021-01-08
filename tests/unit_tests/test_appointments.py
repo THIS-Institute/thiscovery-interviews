@@ -406,10 +406,12 @@ class TestAcuityEvent(AppointmentsTestCase):
     def test_18_process_booking_has_link_ok(self):
         (
             storing_result,
+            task_completion_result,
             thiscovery_team_notification_result,
             participant_and_researchers_notification_results
         ) = self.ae.process()
         self.assertEqual(HTTPStatus.OK, storing_result['ResponseMetadata']['HTTPStatusCode'])
+        self.assertIsNone(task_completion_result)
         self.assertEqual(HTTPStatus.OK, thiscovery_team_notification_result)
         self.assertIsNone(participant_and_researchers_notification_results)
         self.clear_appointments_table()
@@ -421,10 +423,12 @@ class TestAcuityEvent(AppointmentsTestCase):
         ae = app.AcuityEvent(acuity_event=event_body, logger=self.logger)
         (
             storing_result,
+            task_completion_result,
             thiscovery_team_notification_result,
             participant_and_researchers_notification_results
         ) = ae.process()
         self.assertEqual(HTTPStatus.OK, storing_result['ResponseMetadata']['HTTPStatusCode'])
+        self.assertIsNone(task_completion_result)
         self.assertIsNone(thiscovery_team_notification_result)
         self.assertIsNone(participant_and_researchers_notification_results)
         self.clear_appointments_table()
@@ -436,10 +440,12 @@ class TestAcuityEvent(AppointmentsTestCase):
         ae = app.AcuityEvent(acuity_event=event_body, logger=self.logger)
         (
             storing_result,
+            task_completion_result,
             thiscovery_team_notification_result,
             participant_and_researchers_notification_results
         ) = ae.process()
         self.assertEqual(HTTPStatus.OK, storing_result['ResponseMetadata']['HTTPStatusCode'])
+        self.assertIsNone(task_completion_result)
         self.assertIsNone(thiscovery_team_notification_result)
         participant_result = participant_and_researchers_notification_results.get('participant')
         self.assertEqual(HTTPStatus.NO_CONTENT, participant_result)
@@ -455,10 +461,12 @@ class TestAcuityEvent(AppointmentsTestCase):
         ae = app.AcuityEvent(acuity_event=event_body, logger=self.logger)
         (
             storing_result,
+            task_completion_result,
             thiscovery_team_notification_result,
             participant_and_researchers_notification_results
         ) = ae.process()
         self.assertEqual(HTTPStatus.OK, storing_result['ResponseMetadata']['HTTPStatusCode'])
+        self.assertIsNone(task_completion_result)
         self.assertIsNone(thiscovery_team_notification_result)
         participant_result = participant_and_researchers_notification_results.get('participant')
         self.assertEqual(HTTPStatus.NO_CONTENT, participant_result)
@@ -476,10 +484,12 @@ class TestAcuityEvent(AppointmentsTestCase):
         ae = app.AcuityEvent(acuity_event=event_body, logger=self.logger)
         (
             storing_result,
+            task_completion_result,
             thiscovery_team_notification_result,
             participant_and_researchers_notification_results
         ) = ae.process()
         self.assertEqual(HTTPStatus.OK, storing_result['ResponseMetadata']['HTTPStatusCode'])
+        self.assertIsNone(task_completion_result)
         self.assertIsNone(thiscovery_team_notification_result)
         participant_result = participant_and_researchers_notification_results.get('participant')
         self.assertEqual(HTTPStatus.NO_CONTENT, participant_result)
@@ -494,10 +504,12 @@ class TestAcuityEvent(AppointmentsTestCase):
         ae = app.AcuityEvent(acuity_event=event_body, logger=self.logger)
         (
             storing_result,
+            task_completion_result,
             thiscovery_team_notification_result,
             participant_and_researchers_notification_results
         ) = ae.process()
         self.assertEqual(HTTPStatus.OK, storing_result['ResponseMetadata']['HTTPStatusCode'])
+        self.assertIsNone(task_completion_result)
         self.assertIsNone(thiscovery_team_notification_result)
         self.assertIsNone(participant_and_researchers_notification_results)
 
