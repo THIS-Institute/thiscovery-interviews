@@ -607,7 +607,7 @@ class AcuityEvent:
         storing_result = self.appointment.ddb_dump()
         task_completion_result = None
         if self.appointment.anon_user_task_id:
-            task_completion_result = self.core_api_client.set_user_task_completed(anon_user_task_id=self.appointment.anon_user_task_id)
+            task_completion_result = self.core_api_client.set_user_task_completed(anon_user_task_id=self.appointment.anon_user_task_id)['statusCode']
         thiscovery_team_notification_result = None
         participant_and_researchers_notification_results = None
         if self.appointment.appointment_type.has_link:

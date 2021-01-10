@@ -89,7 +89,7 @@ class TestAcuityEvent(AppointmentsTestCase):
         result = ae.notify_thiscovery_team()
         self.assertEqual('aborted', result)
 
-    def test_06_process_booking_has_link_ok(self):
+    def test_06_process_booking_has_link_no_user_metadata_ok(self):
         (
             storing_result,
             task_completion_result,
@@ -102,7 +102,24 @@ class TestAcuityEvent(AppointmentsTestCase):
         self.assertIsNone(participant_and_researchers_notification_results)
         self.clear_appointments_table()
 
-    def test_07_process_booking_no_link_no_notifications_ok(self):
+    def test_07_process_booking_has_link_with_user_metadata_ok(self):
+        ae = app.AcuityEvent(
+            acuity_event=self.test_data['event_body_with_user_metadata'],
+            logger=self.logger,
+        )
+        (
+            storing_result,
+            task_completion_result,
+            thiscovery_team_notification_result,
+            participant_and_researchers_notification_results
+        ) = ae.process()
+        self.assertEqual(HTTPStatus.OK, storing_result['ResponseMetadata']['HTTPStatusCode'])
+        self.assertEqual(HTTPStatus.NO_CONTENT, task_completion_result)
+        self.assertEqual(HTTPStatus.OK, thiscovery_team_notification_result)
+        self.assertIsNone(participant_and_researchers_notification_results)
+        self.clear_appointments_table()
+
+    def test_08_process_booking_no_link_no_notifications_no_user_metadata_ok(self):
         event_body = f"action=appointment.scheduled" \
                      f"&id=399682887&calendarID=4038206" \
                      f"&appointmentTypeID={self.test_data['dev_appointment_type_id']}"
@@ -119,7 +136,7 @@ class TestAcuityEvent(AppointmentsTestCase):
         self.assertIsNone(participant_and_researchers_notification_results)
         self.clear_appointments_table()
 
-    def test_08_process_booking_no_link_with_notifications_ok(self):
+    def test_09_process_booking_no_link_with_notifications_no_user_metadata_ok(self):
         event_body = f"action=appointment.scheduled" \
                      f"&id=399682887&calendarID=4038206" \
                      f"&appointmentTypeID={self.test_data['dev_appointment_no_link_type_id']}"
@@ -139,7 +156,7 @@ class TestAcuityEvent(AppointmentsTestCase):
         self.assertEqual([HTTPStatus.NO_CONTENT]*2, researchers_result)
         self.clear_appointments_table()
 
-    def test_09_process_cancellation_ok(self):
+    def test_10_process_cancellation_ok(self):
         self.aa1.ddb_dump()  # simulates original booking
         event_body = f"action=appointment.canceled" \
                      f"&id={self.test_data['test_appointment_id']}&calendarID=4038206" \
@@ -160,7 +177,7 @@ class TestAcuityEvent(AppointmentsTestCase):
         self.assertEqual([HTTPStatus.NO_CONTENT] * 2, researchers_result)
         self.clear_appointments_table()
 
-    def test_10_process_rescheduling_same_calendar_ok_link_already_generated(self):
+    def test_11_process_rescheduling_same_calendar_ok_link_already_generated(self):
         original_appointment = copy.copy(self.aa1)
         original_appointment.link = td['interview_url']
         original_appointment.ddb_dump(update_allowed=True)  # store original appointment in ddb
@@ -182,7 +199,7 @@ class TestAcuityEvent(AppointmentsTestCase):
         researchers_result = participant_and_researchers_notification_results.get('researchers')
         self.assertEqual([HTTPStatus.NO_CONTENT] * 2, researchers_result)
 
-    def test_11_process_rescheduling_same_calendar_ok_link_not_generated_yet(self):
+    def test_12_process_rescheduling_same_calendar_ok_link_not_generated_yet(self):
         self.aa1.ddb_dump(update_allowed=True)  # store original appointment in ddb
         event_body = f"action=appointment.rescheduled" \
                      f"&id=399682887&calendarID=4038206" \
@@ -200,7 +217,7 @@ class TestAcuityEvent(AppointmentsTestCase):
         self.assertIsNone(participant_and_researchers_notification_results)
 
     @unittest.skip
-    def test_12_process_rescheduling_different_calendar_ok(self):
+    def test_13_process_rescheduling_different_calendar_ok(self):
         """
         Can't test this because process fetches latest info from Acuity rather than
         relying on the calendarID in event_body.
