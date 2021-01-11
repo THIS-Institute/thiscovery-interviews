@@ -125,6 +125,7 @@ class AcuityAppointment:
         self.appointment_type = AppointmentType()
         self.latest_participant_notification = '0000-00-00 00:00:00+00:00'  # used as GSI sort key, so cannot be None
         self.appointment_date = None
+        self.appointment_type_id = None
 
         self._logger = logger
         if self._logger is None:
@@ -220,6 +221,7 @@ class AcuityAppointment:
         if (self.acuity_info is None) or (force_refresh is True):
             self.acuity_info = self._acuity_client.get_appointment_by_id(self.appointment_id)
             self.appointment_type.type_id = str(self.acuity_info['appointmentTypeID'])
+            self.appointment_type_id = self.appointment_type.type_id
             self.calendar_name = self.acuity_info['calendar']
             self.calendar_id = str(self.acuity_info['calendarID'])
             self.participant_email = self.acuity_info['email']
