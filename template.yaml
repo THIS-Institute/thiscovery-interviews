@@ -198,6 +198,8 @@ Resources:
           AttributeType: S
         - AttributeName: latest_participant_notification
           AttributeType: S
+        - AttributeName: appointment_type_id
+          AttributeType: S
       BillingMode: PAY_PER_REQUEST
       KeySchema:
         - AttributeName: id
@@ -214,6 +216,14 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: KEYS_ONLY
+        - IndexName: project-appointments-index
+          KeySchema:
+            - AttributeName: appointment_type_id
+              KeyType: HASH
+            - AttributeName: appointment_date
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
   SendAppointmentReminder:
     Type: AWS::Serverless::Function
     Properties:
