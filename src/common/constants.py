@@ -22,6 +22,10 @@ STACK_NAME = 'thiscovery-interviews'
 APPOINTMENTS_TABLE = 'Appointments'
 APPOINTMENT_TYPES_TABLE = 'AppointmentTypes'
 
+
+ACUITY_USER_METADATA_INTAKE_FORM_ID = 1606751
+
+
 COMMON_PROPERTIES = [
     'project_short_name',
     'user_first_name',

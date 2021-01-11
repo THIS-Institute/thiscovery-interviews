@@ -27,9 +27,8 @@ from thiscovery_lib.core_api_utilities import CoreApiClient
 from thiscovery_lib.dynamodb_utilities import Dynamodb
 from thiscovery_lib.emails_api_utilities import EmailsApiClient
 
-
 from common.acuity_utilities import AcuityClient
-from common.constants import APPOINTMENTS_TABLE, APPOINTMENT_TYPES_TABLE, DEFAULT_TEMPLATES, STACK_NAME
+from common.constants import ACUITY_USER_METADATA_INTAKE_FORM_ID, APPOINTMENTS_TABLE, APPOINTMENT_TYPES_TABLE, DEFAULT_TEMPLATES, STACK_NAME
 
 
 class AppointmentType:
@@ -125,6 +124,8 @@ class AcuityAppointment:
         self.appointment_type = AppointmentType()
         self.latest_participant_notification = '0000-00-00 00:00:00+00:00'  # used as GSI sort key, so cannot be None
         self.appointment_date = None
+        self.anon_project_specific_user_id = None
+        self.anon_user_task_id = None
         self.appointment_type_id = None
 
         self._logger = logger
@@ -226,6 +227,12 @@ class AcuityAppointment:
             self.calendar_id = str(self.acuity_info['calendarID'])
             self.participant_email = self.acuity_info['email']
             self.appointment_date = self.acuity_info['datetime'].split('T')[0]
+            # intake form processing
+            for form in self.acuity_info['forms']:
+                if form['id'] == ACUITY_USER_METADATA_INTAKE_FORM_ID:
+                    intake_form_fields = {x.get('name'): x.get('value') for x in form['values']}
+                    self.anon_project_specific_user_id = intake_form_fields.get('anon_project_specific_user_id')
+                    self.anon_user_task_id = intake_form_fields.get('anon_user_task_id')
         return self.acuity_info
 
 
@@ -345,6 +352,10 @@ class AppointmentNotifier:
         raise utils.ObjectDoesNotExistError(f'Project task {self.appointment.appointment_type.project_task_id} not found', details={})
 
     def _get_anon_project_specific_user_id(self):
+        if self.appointment.anon_project_specific_user_id:
+            self.anon_project_specific_user_id = self.appointment.anon_project_specific_user_id
+            return self.anon_project_specific_user_id
+
         if self.appointment.participant_user_id is None:
             try:
                 self.appointment.get_participant_user_id()
@@ -503,6 +514,7 @@ class AcuityEvent:
         self.logger = logger
         if logger is None:
             self.logger = utils.get_logger()
+        self.core_api_client = CoreApiClient(correlation_id=correlation_id)
         self.correlation_id = correlation_id
 
         event_pattern = re.compile(
@@ -595,13 +607,16 @@ class AcuityEvent:
 
     def _process_booking(self):
         storing_result = self.appointment.ddb_dump()
+        task_completion_result = None
+        if self.appointment.anon_user_task_id:
+            task_completion_result = self.core_api_client.set_user_task_completed(anon_user_task_id=self.appointment.anon_user_task_id)['statusCode']
         thiscovery_team_notification_result = None
         participant_and_researchers_notification_results = None
         if self.appointment.appointment_type.has_link:
             thiscovery_team_notification_result = self.notify_thiscovery_team()
         else:
             participant_and_researchers_notification_results = self._notify_participant_and_researchers(event_type='booking')
-        return storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results
+        return storing_result, task_completion_result, thiscovery_team_notification_result, participant_and_researchers_notification_results
 
     def _get_original_booking(self):
         original_booking_info = self.appointment.get_appointment_item_from_ddb()
@@ -614,7 +629,8 @@ class AcuityEvent:
         storing_result = self.appointment.ddb_dump(update_allowed=True)
         thiscovery_team_notification_result = None
         participant_and_researchers_notification_results = self._notify_participant_and_researchers(event_type='cancellation')
-        return storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results
+        task_completion_result = None
+        return storing_result, task_completion_result, thiscovery_team_notification_result, participant_and_researchers_notification_results
 
     def _process_rescheduling(self):
         original_booking_info = self._get_original_booking()
@@ -638,7 +654,8 @@ class AcuityEvent:
                     )
         else:
             thiscovery_team_notification_result = self.notify_thiscovery_team()
-        return storing_result, thiscovery_team_notification_result, participant_and_researchers_notification_results
+        task_completion_result = None
+        return storing_result, task_completion_result, thiscovery_team_notification_result, participant_and_researchers_notification_results
 
     def process(self):
         """
