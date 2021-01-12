@@ -18,6 +18,7 @@
 import local.dev_config  # set env variables
 import local.secrets  # set env variables
 import copy
+import os
 import thiscovery_lib.utilities as utils
 import thiscovery_dev_tools.testing_tools as test_utils
 
@@ -28,6 +29,9 @@ from local.dev_config import TEST_ON_AWS
 from src.common.constants import STACK_NAME
 
 from local.secrets import TESTER_EMAIL_MAP
+
+
+BASE_FOLDER = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')  # thiscovery-interviews/
 
 
 class DdbMixin:
