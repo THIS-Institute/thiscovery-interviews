@@ -1,2 +1,2 @@
 simplejson
-thiscovery-lib==2020.9.2
+thiscovery-lib
