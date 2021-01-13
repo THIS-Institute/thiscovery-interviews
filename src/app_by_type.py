@@ -15,7 +15,7 @@
 #   A copy of the GNU Affero General Public License is available in the
 #   docs folder of this project.  It is also available www.gnu.org/licenses/
 #
-import json
+import simplejson as json
 import thiscovery_lib.utilities as utils
 
 from http import HTTPStatus

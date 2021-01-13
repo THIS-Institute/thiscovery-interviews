@@ -44,6 +44,7 @@ td = {
 appointments = {
     'appointment1': {  # hasn't received initial notification yet
         "appointment_id": "399682887",
+        "appointment_type_id": "14792299",
         "acuity_info": {
             "id": 399682887,
             "firstName": "Clive",
@@ -105,6 +106,7 @@ appointments = {
     },
     'appointment2': {  # last notification received 3 days before appointment
         "appointment_id": "448161724",
+        "appointment_type_id": "14649911",
         "acuity_info": {
             "id": 448161724,
             "firstName": "Altha",
@@ -166,6 +168,7 @@ appointments = {
     },
     'appointment3': {  # last notification received 1 day before appointment
         "appointment_id": "451427483",
+        "appointment_type_id": "17271544",
         "acuity_info": {
             "id": 451427483,
             "firstName": "Clive",
@@ -227,6 +230,7 @@ appointments = {
     },
     'appointment4': {  # hasn't received initial notification yet
         "appointment_id": "450820094",
+        "appointment_type_id": "17271544",
         "acuity_info": {
             "id": 450820094,
             "firstName": "Greg",
@@ -288,6 +292,7 @@ appointments = {
     },
     'appointment5': {  # hasn't received initial notification yet
         "appointment_id": "451904182",
+        "appointment_type_id": "17271544",
         "acuity_info": {
             "id": 451904182,
             "firstName": "Eddie",
@@ -349,6 +354,7 @@ appointments = {
     },
     'appointment6': {  # hasn't received initial notification yet
         "appointment_id": "448161419",
+        "appointment_type_id": "17268193",
         "acuity_info": {
             "id": 448161419,
             "firstName": "Altha",
