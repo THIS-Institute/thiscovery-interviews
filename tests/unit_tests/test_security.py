@@ -18,6 +18,7 @@
 import testing_utilities as test_utils  # this should be the first import; it sets env variables
 import json
 import os
+from http import HTTPStatus
 from thiscovery_dev_tools.testing_tools import TestApiEndpoints, TestSecurityOfEndpointsDefinedInTemplateYaml
 
 from test_data import td
