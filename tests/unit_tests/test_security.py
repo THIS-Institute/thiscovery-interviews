@@ -23,6 +23,7 @@ from thiscovery_dev_tools.testing_tools import TestApiEndpoints, TestSecurityOfE
 
 from test_data import td
 
+
 class TestInterviewApiEndpoints(TestApiEndpoints):
 
     def test_01_get_appointments_by_type_requires_valid_key(self):
