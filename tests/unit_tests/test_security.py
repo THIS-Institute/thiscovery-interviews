@@ -52,7 +52,7 @@ class TestInterviewApiEndpoints(TestApiEndpoints):
                f"&appointmentTypeID=invalid_id"
         self.check_api_is_public(
             request_verb='POST',
-            aws_url='/v1/interview-appointment',
+            aws_url='v1/interview-appointment',
             expected_status=HTTPStatus.INTERNAL_SERVER_ERROR,
             request_body=body,
         )

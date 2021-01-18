@@ -29,7 +29,7 @@ from testing_utilities import DdbMixin
 
 
 class TestAppByType(test_utils.BaseTestCase, DdbMixin):
-    endpoint_url = '/v1/appointments-by-type'
+    endpoint_url = 'v1/appointments-by-type'
 
     @classmethod
     def setUpClass(cls):
