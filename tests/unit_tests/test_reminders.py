@@ -161,5 +161,6 @@ class RemindersTestCase(test_tools.BaseTestCase, test_utils.DdbMixin):
         response = lambda_client.invoke(
             function_name='SendAppointmentReminder'
         )
-        self.assertNotIn('FunctionError', response.keys())
         self.assertEqual(list(), response['Payload'])
+        self.assertNotIn('FunctionError', response.keys())
+
